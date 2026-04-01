@@ -1,0 +1,17 @@
+# Tool registry for this package.
+#
+# Each tool must have a matching directory with index.js.
+# Format: provider/model style for args, simplified types.
+# This file is the source of truth for tool metadata.
+# When wrapping into MCP server, args convert to JSON Schema / Zod.
+#
+# Supported types: string, number, boolean
+# Required: true | false (default: false)
+
+tools:
+  %tool-name%:
+    description: %what this tool does%
+    args:
+      %arg-name%: { type: %type%, required: %true|false% }
+      # text: { type: string, required: true }
+      # limit: { type: number, required: false }

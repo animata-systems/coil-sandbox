@@ -1,0 +1,37 @@
+' Agent scenario template.
+'
+' This file is a COIL protocol instance for one agent.
+' Filename (without .coil) becomes the agent's @name.
+'
+' Available references:
+'   @name  — participants declared in УЧАСТНИКИ
+'   !name  — tools declared in ИНСТРУМЕНТЫ (mapped in config.yml)
+'   $name  — values from ОПРЕДЕЛИ, ПОЛУЧИ, or resolved promises
+'   ?name  — promises from ДУМАЙ, ВЫПОЛНИ, НАПИШИ+ЖДАТЬ
+'   #name  — channels for НАПИШИ КУДА
+'   ~name  — streams (from ДУМАЙ/ВЫПОЛНИ that support streaming)
+'
+' Models: use ЧЕРЕЗ $model-alias (aliases defined in config.yml models section)
+
+' УЧАСТНИКИ %other-agent%, %another-agent%
+' ИНСТРУМЕНТЫ %tool-alias%
+
+' ПОЛУЧИ %input-name%
+' <<
+' %prompt for the host to provide this value%
+' >>
+' КОНЕЦ
+
+' ДУМАЙ %result-name%
+'   ЧЕРЕЗ $%model-alias%
+'   КАК $%skill-name%
+'   ЦЕЛЬ <<
+'   %what to solve%
+'   >>
+'   РЕЗУЛЬТАТ
+'   * %field%: ТЕКСТ - %description%
+' КОНЕЦ
+
+' ЖДИ НА ?%result-name% КОНЕЦ
+
+' ВЫХОД

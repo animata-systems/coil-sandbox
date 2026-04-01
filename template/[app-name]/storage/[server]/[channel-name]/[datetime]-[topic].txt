@@ -1,7 +1,20 @@
-DATETIME: 2022-01-01T00:00:00.000Z
-TO: @%member-name%
-FROM: @%member-name%
-REPLY-TO: #%channel-name%/%datetime%
+# Message format for channel storage (seed data and runtime persistence).
+#
+# Each message is a YAML document separated by ---.
+# Sandbox reads these at startup to restore channel state.
+# Sandbox appends new messages during execution.
+#
+# Fields:
+#   DATETIME  — ISO 8601 timestamp with timezone
+#   TO        — recipient(s): @name or @name, @name
+#   FROM      — sender: @name
+#   REPLY-TO  — optional: #channel/datetime reference for threading
+#   BODY      — message content (multi-line with YAML | syntax)
+
+DATETIME: %YYYY-MM-DDTHH:MM:SS.sssZ%
+TO: @%recipient%
+FROM: @%sender%
+REPLY-TO: #%channel%/%datetime%
 BODY: |
-  %message%
+  %message text%
 ---

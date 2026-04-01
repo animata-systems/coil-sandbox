@@ -1,0 +1,21 @@
+# Application configuration
+#
+# models:   abstract name → provider/model (OpenRouter format)
+# agents:   agent name → tool mappings
+#
+# Agent names are auto-discovered from agents/*.coil filenames.
+# Tool names on the left are abstract names used in COIL scenarios (ИНСТРУМЕНТЫ / TOOLS).
+# Tool names on the right are concrete paths: package-name/tool-name.
+# Concrete tools must exist in backend/package-name/tool-name/index.js
+# and be listed in backend/package-name/list.yml.
+
+models:
+  %model-alias%: %provider%/%model-id%
+  # fast: openai/gpt-4o-mini
+  # smart: anthropic/claude-sonnet-4
+
+agents:
+  %agent-name%:
+    tools:
+      %abstract-tool-name%: %package-name%/%tool-name%
+      # search: web-tools/search-web
