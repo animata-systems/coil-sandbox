@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COIL Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0f;
+    --bg-surface: #12121a;
+    --bg-elevated: #1a1a24;
+    --bg-hover: #22222e;
+    --bg-active: #2a2a3a;
+    --border: #2a2a3a;
+    --border-subtle: #1e1e28;
+    --text: #e4e4ed;
+    --text-dim: #6b6b80;
+    --text-bright: #ffffff;
+    --accent: #6366f1;
+    --accent-light: #818cf8;
+    --accent-dim: #3730a3;
+    --accent-glow: rgba(99, 102, 241, 0.15);
+    --green: #22c55e;
+    --green-dim: rgba(34, 197, 94, 0.15);
+    --yellow: #eab308;
+    --red: #ef4444;
+    --red-dim: rgba(239, 68, 68, 0.1);
+    --radius: 10px;
+    --radius-sm: 6px;
+    --radius-lg: 14px;
+    --sidebar-w: 260px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  html, body {
+    height: 100%;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    height: 100vh;
+    background: linear-gradient(135deg, var(--bg) 0%, #0d0d14 100%);
+  }
+
+  /* ── Sidebar ─────────────────────────── */
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+  }
+
+  .sidebar h3 {
+    padding: 16px 18px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+  }
+
+  .server-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-surface) 100%);
+  }
+
+  .server-bar select {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    transition: var(--transition);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b80' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .server-bar select:hover { border-color: var(--text-dim); }
+  .server-bar select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+  .icon-btn {
+    background: var(--bg);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+  .icon-btn:hover {
+    color: var(--text);
+    border-color: var(--text-dim);
+    background: var(--bg-hover);
+    transform: translateY(-1px);
+  }
+  .icon-btn:active { transform: translateY(0); }
+  .icon-btn--danger:hover {
+    color: var(--red);
+    border-color: var(--red);
+    background: var(--red-dim);
+  }
+  .icon-btn--small {
+    width: 26px;
+    height: 26px;
+    font-size: 16px;
+    border-radius: var(--radius-sm);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 16px;
+    margin-top: 8px;
+  }
+  .section-header h3 { flex: 1; }
+
+  .channel-list {
+    flex: 1;
+    overflow-y: auto;
+    list-style: none;
+    padding: 4px 8px;
+  }
+
+  .channel-list li {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-dim);
+    border-radius: var(--radius-sm);
+    margin-bottom: 2px;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .channel-list li:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+  .channel-list li.active {
+    background: linear-gradient(135deg, var(--accent-glow) 0%, transparent 100%);
+    color: var(--text-bright);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .channel-list li .badge {
+    background: var(--bg-active);
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+  .channel-list li .ch-delete {
+    color: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    transition: var(--transition);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+  }
+  .channel-list li:hover .ch-delete { color: var(--text-dim); }
+  .channel-list li .ch-delete:hover {
+    color: var(--red);
+    background: var(--red-dim);
+  }
+
+  .agent-list {
+    border-top: 1px solid var(--border-subtle);
+    padding: 12px 16px;
+  }
+  .agent-list h3 {
+    padding: 0 0 10px;
+    margin: 0;
+  }
+  .agent-list .agent {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 10px;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .agent-list .agent:hover {
+    color: var(--text);
+    background: var(--bg-hover);
+  }
+  .agent-list .agent::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .log-panel {
+    border-top: 1px solid var(--border-subtle);
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 12px 16px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    color: var(--text-dim);
+    background: var(--bg);
+  }
+  .log-panel .log-entry {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .log-panel .log-entry:last-child { border-bottom: none; }
+  .log-panel .log-agent {
+    color: var(--yellow);
+    font-weight: 500;
+  }
+
+  /* ── Main panel ──────────────────────── */
+
+  .main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: linear-gradient(180deg, var(--bg) 0%, #08080c 100%);
+  }
+
+  .main-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-bright);
+    background: var(--bg-surface);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    backdrop-filter: blur(20px);
+  }
+  .main-header .back-btn {
+    display: none;
+    cursor: pointer;
+    color: var(--accent-light);
+    font-size: 20px;
+    line-height: 1;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-glow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+  }
+  .main-header .back-btn:hover {
+    background: var(--accent-dim);
+    color: var(--text-bright);
+  }
+  .main-header .back-btn { display: none; }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+  }
+
+  .message {
+    padding: 14px 18px;
+    margin-bottom: 8px;
+    border-radius: var(--radius);
+    transition: var(--transition);
+    background: var(--bg-surface);
+    border: 1px solid transparent;
+  }
+  .message:hover {
+    background: var(--bg-elevated);
+    border-color: var(--border-subtle);
+    transform: translateX(4px);
+  }
+  .message.clickable { cursor: pointer; }
+  .message.clickable:hover {
+    box-shadow: var(--shadow-sm);
+  }
+  .message .msg-header {
+    font-size: 13px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .message .msg-from {
+    font-weight: 600;
+    color: var(--accent-light);
+    background: var(--accent-glow);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .message .msg-to {
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--green-dim);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .message .msg-time {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 500;
+    margin-left: auto;
+  }
+  .message .msg-comment-count {
+    color: var(--text-dim);
+    font-size: 11px;
+    background: var(--bg-active);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .message .msg-reply-to {
+    font-size: 12px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-left: 3px solid var(--accent-dim);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--bg);
+    color: var(--text-dim);
+    cursor: pointer;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    transition: var(--transition);
+  }
+  .message .msg-reply-to:hover {
+    color: var(--text);
+    border-left-color: var(--accent);
+    background: var(--bg-hover);
+  }
+  .message .msg-reply-icon { color: var(--accent-light); }
+  .message .msg-reply-from { color: var(--accent-light); font-weight: 600; }
+  .message .msg-reply-preview { opacity: 0.7; }
+  .message .msg-body {
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+  }
+  .msg-reply-btn {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0 4px;
+    margin-left: 4px;
+    transition: var(--transition);
+  }
+  .message:hover .msg-reply-btn { display: inline; }
+  .msg-reply-btn:hover {
+    color: var(--accent-light);
+  }
+
+  /* ── Thread view ─────────────────────── */
+
+  .pinned-post {
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 16px 24px;
+    border-bottom: 2px solid var(--accent-dim);
+    background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-surface) 100%);
+  }
+  .pinned-post .message {
+    margin-bottom: 0;
+    background: transparent;
+    border: none;
+  }
+  .pinned-post .message:hover {
+    transform: none;
+    background: transparent;
+  }
+
+  /* ── Reply indicator ─────────────────── */
+
+  .reply-indicator {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 24px;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border-subtle);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .reply-indicator.active { display: flex; }
+  .reply-indicator .reply-label {
+    color: var(--accent-light);
+    font-weight: 500;
+  }
+  .reply-indicator .reply-preview {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .reply-indicator .reply-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: var(--transition);
+  }
+  .reply-indicator .reply-close:hover { color: var(--text); }
+
+  /* ── Input area ──────────────────────── */
+
+  .input-area {
+    border-top: 1px solid var(--border-subtle);
+    padding: 16px 24px;
+    background: var(--bg-surface);
+    display: flex;
+    gap: 12px;
+    backdrop-filter: blur(20px);
+  }
+  .input-area input {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: var(--transition);
+  }
+  .input-area input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .input-area input::placeholder { color: var(--text-dim); }
+  .input-area button {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
+    color: var(--text-bright);
+    border: none;
+    border-radius: var(--radius);
+    padding: 14px 28px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 600;
+    font-family: inherit;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+  }
+  .input-area button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  .input-area button:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* ── Scrollbar styling ───────────────── */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  /* ── Empty state ─────────────────────── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+    font-size: 14px;
+    gap: 8px;
+  }
+  .empty-state::before {
+    content: '';
+    width: 48px;
+    height: 48px;
+    background: var(--bg-elevated);
+    border-radius: 50%;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="server-bar">
+      <select id="serverSelect"></select>
+      <button class="icon-btn" id="addServerBtn" title="Add server">+</button>
+      <button class="icon-btn icon-btn--danger" id="delServerBtn" title="Delete server">&times;</button>
+    </div>
+    <div class="section-header">
+      <h3>Channels</h3>
+      <button class="icon-btn icon-btn--small" id="addChannelBtn" title="Add channel">+</button>
+    </div>
+    <ul class="channel-list" id="channelList"></ul>
+    <div class="agent-list" id="agentList">
+      <h3>Agents</h3>
+    </div>
+    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+  <!-- Main panel -->
+  <div class="main">
+    <div class="main-header">
+      <span class="back-btn" id="backBtn" title="Back to channel">&larr;</span>
+      <span id="headerTitle">#general</span>
+    </div>
+
+    <!-- Channel view: posts -->
+    <div id="channelView" style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
+      <div class="messages" id="postList"></div>
+      <div class="reply-indicator" id="postReplyIndicator">
+        <span class="reply-label">Reply to</span>
+        <span class="reply-preview" id="postReplyPreview"></span>
+        <button class="reply-close" id="postReplyClear">&times;</button>
+      </div>
+      <div class="input-area">
+        <input type="text" id="postInput" placeholder="Write a message..." autocomplete="off">
+        <button id="postSend">Send</button>
+      </div>
+    </div>
+
+    <!-- Thread view: pinned post + comments -->
+    <div id="threadView" style="display: none; flex-direction: column; flex: 1; overflow: hidden;">
+      <div class="pinned-post" id="pinnedPost"></div>
+      <div class="messages" id="commentList"></div>
+      <div class="reply-indicator" id="commentReplyIndicator">
+        <span class="reply-label">Reply to</span>
+        <span class="reply-preview" id="commentReplyPreview"></span>
+        <button class="reply-close" id="commentReplyClear">&times;</button>
+      </div>
+      <div class="input-area">
+        <input type="text" id="commentInput" placeholder="Write a comment..." autocomplete="off">
+        <button id="commentSend">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function() {
+  const socket = io();
+
+  // ── State ──────────────────────────────
+  let currentChannel = '';
+  let currentServer = '';
+  let currentView = 'channel'; // 'channel' | 'thread'
+  let threadPostId = null;
+  let allMessages = {};    // channel → MessageEnvelope[]
+  let channelNames = [];
+  let serverNames = [];
+  let replyToMsg = null;   // message being replied to (or null)
+
+  // ── DOM refs ───────────────────────────
+  const $serverSelect = document.getElementById('serverSelect');
+  const $addServerBtn = document.getElementById('addServerBtn');
+  const $delServerBtn = document.getElementById('delServerBtn');
+  const $addChannelBtn = document.getElementById('addChannelBtn');
+  const $channelList = document.getElementById('channelList');
+  const $agentList = document.getElementById('agentList');
+  const $logPanel = document.getElementById('logPanel');
+  const $headerTitle = document.getElementById('headerTitle');
+  const $backBtn = document.getElementById('backBtn');
+  const $channelView = document.getElementById('channelView');
+  const $threadView = document.getElementById('threadView');
+  const $postList = document.getElementById('postList');
+  const $postInput = document.getElementById('postInput');
+  const $postSend = document.getElementById('postSend');
+  const $pinnedPost = document.getElementById('pinnedPost');
+  const $commentList = document.getElementById('commentList');
+  const $commentInput = document.getElementById('commentInput');
+  const $commentSend = document.getElementById('commentSend');
+  const $postReplyIndicator = document.getElementById('postReplyIndicator');
+  const $postReplyPreview = document.getElementById('postReplyPreview');
+  const $postReplyClear = document.getElementById('postReplyClear');
+  const $commentReplyIndicator = document.getElementById('commentReplyIndicator');
+  const $commentReplyPreview = document.getElementById('commentReplyPreview');
+  const $commentReplyClear = document.getElementById('commentReplyClear');
+
+  // ── Helpers ────────────────────────────
+
+  function formatTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function formatBody(body) {
+    if (typeof body === 'string') return escapeHtml(body);
+    return escapeHtml(JSON.stringify(body, null, 2));
+  }
+
+  function parsePostId(commentOn) {
+    if (!commentOn) return null;
+    const parts = commentOn.replace(/^#/, '').split('/');
+    return parts.length >= 2 ? parts[1] : parts[0] || null;
+  }
+
+  function findMessage(id) {
+    for (const ch in allMessages) {
+      const found = allMessages[ch].find(function(m) { return m.id === id; });
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function getPosts(channel) {
+    const msgs = allMessages[channel] || [];
+    return msgs.filter(m => !m.commentOn);
+  }
+
+  function getComments(channel, postId) {
+    const msgs = allMessages[channel] || [];
+    return msgs.filter(m => parsePostId(m.commentOn) === postId);
+  }
+
+  function countComments(channel, postId) {
+    return getComments(channel, postId).length;
+  }
+
+  // ── Render ─────────────────────────────
+
+  function renderServers() {
+    $serverSelect.innerHTML = '';
+    for (const name of serverNames) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      if (name === currentServer) opt.selected = true;
+      $serverSelect.appendChild(opt);
+    }
+  }
+
+  function renderChannelList() {
+    $channelList.innerHTML = '';
+    for (const name of channelNames) {
+      const li = document.createElement('li');
+      if (name === currentChannel) li.classList.add('active');
+      li.addEventListener('click', () => switchChannel(name));
+
+      const span = document.createElement('span');
+      span.textContent = '#' + name;
+      li.appendChild(span);
+
+      const del = document.createElement('span');
+      del.className = 'ch-delete';
+      del.textContent = '\u00d7';
+      del.title = 'Delete channel';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('Delete channel #' + name + '?')) {
+          socket.emit('delete-channel', name);
+        }
+      });
+      li.appendChild(del);
+
+      $channelList.appendChild(li);
+    }
+  }
+
+  function renderAgents(agents) {
+    // Keep the h3, add agents
+    const existing = $agentList.querySelectorAll('.agent');
+    existing.forEach(el => el.remove());
+    for (const name of agents) {
+      const div = document.createElement('div');
+      div.className = 'agent';
+      div.textContent = name;
+      div.addEventListener('click', () => insertMention(name));
+      $agentList.appendChild(div);
+    }
+  }
+
+  function insertMention(name) {
+    const input = currentView === 'thread' ? $commentInput : $postInput;
+    const mention = '@' + name + ' ';
+    const pos = input.selectionStart ?? input.value.length;
+    input.value = input.value.slice(0, pos) + mention + input.value.slice(pos);
+    input.focus();
+    input.selectionStart = input.selectionEnd = pos + mention.length;
+  }
+
+  function setReplyTo(msg) {
+    replyToMsg = msg;
+    const from = msg.from.startsWith('@') ? msg.from : '@' + msg.from;
+    const body = typeof msg.body === 'string' ? msg.body : JSON.stringify(msg.body);
+    const preview = from + ': ' + (body.length > 60 ? body.slice(0, 60) + '\u2026' : body);
+
+    if (currentView === 'thread') {
+      $commentReplyIndicator.classList.add('active');
+      $commentReplyPreview.textContent = preview;
+      $commentInput.focus();
+    } else {
+      $postReplyIndicator.classList.add('active');
+      $postReplyPreview.textContent = preview;
+      $postInput.focus();
+    }
+  }
+
+  function clearReplyTo() {
+    replyToMsg = null;
+    $postReplyIndicator.classList.remove('active');
+    $commentReplyIndicator.classList.remove('active');
+  }
+
+  function createMessageEl(msg, clickable) {
+    const div = document.createElement('div');
+    div.className = 'message' + (clickable ? ' clickable' : '');
+
+    const from = msg.from.startsWith('@') ? msg.from : '@' + msg.from;
+    const time = formatTime(msg.datetime);
+
+    let headerExtra = '';
+    if (clickable) {
+      const count = countComments(msg.channel, msg.id);
+      if (count > 0) {
+        headerExtra = '<span class="msg-comment-count">' + count + ' comment' + (count !== 1 ? 's' : '') + '</span>';
+      }
+    }
+
+    const toList = (msg.to || []).filter(function(t) { return t; });
+    const toHtml = toList.length > 0
+      ? '<span class="msg-to">\u2192 ' + toList.map(escapeHtml).join(', ') + '</span>'
+      : '';
+
+    let replyHtml = '';
+    if (msg.replyTo) {
+      const replyMsgId = parsePostId(msg.replyTo);
+      const replyMsg = replyMsgId ? findMessage(replyMsgId) : null;
+      if (replyMsg) {
+        const replyFrom = replyMsg.from.startsWith('@') ? replyMsg.from : '@' + replyMsg.from;
+        const replyBody = typeof replyMsg.body === 'string' ? replyMsg.body : JSON.stringify(replyMsg.body);
+        const replyPreview = replyBody.length > 80 ? replyBody.slice(0, 80) + '\u2026' : replyBody;
+        replyHtml = '<div class="msg-reply-to" data-reply-id="' + escapeHtml(replyMsgId) + '">' +
+          '<span class="msg-reply-icon">\u21A9</span> ' +
+          '<span class="msg-reply-from">' + escapeHtml(replyFrom) + '</span> ' +
+          '<span class="msg-reply-preview">' + escapeHtml(replyPreview) + '</span>' +
+          '</div>';
+      }
+    }
+
+    div.innerHTML =
+      replyHtml +
+      '<div class="msg-header">' +
+        '<span class="msg-from">' + escapeHtml(from) + '</span>' +
+        toHtml +
+        '<button class="msg-reply-btn">\u21A9</button>' +
+        '<span class="msg-time">' + time + '</span>' +
+        headerExtra +
+      '</div>' +
+      '<div class="msg-body">' + formatBody(msg.body) + '</div>';
+
+    if (clickable) {
+      div.addEventListener('click', (e) => {
+        if (e.target.closest('.msg-reply-btn')) return;
+        openThread(msg);
+      });
+    }
+
+    div.querySelector('.msg-reply-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      setReplyTo(msg);
+    });
+
+    // Click on reply-to block → open thread with the referenced message
+    const replyEl = div.querySelector('.msg-reply-to');
+    if (replyEl) {
+      replyEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const refId = replyEl.getAttribute('data-reply-id');
+        if (!refId) return;
+        const refMsg = findMessage(refId);
+        if (!refMsg) return;
+        const rootId = refMsg.commentOn ? parsePostId(refMsg.commentOn) : refId;
+        const rootMsg = rootId ? findMessage(rootId) : null;
+        if (rootMsg) openThread(rootMsg);
+      });
+    }
+
+    return div;
+  }
+
+  function renderPosts() {
+    $postList.innerHTML = '';
+    const posts = getPosts(currentChannel);
+    for (const msg of posts) {
+      $postList.appendChild(createMessageEl(msg, true));
+    }
+    $postList.scrollTop = $postList.scrollHeight;
+  }
+
+  function renderComments() {
+    if (!threadPostId) return;
+    $commentList.innerHTML = '';
+    const comments = getComments(currentChannel, threadPostId);
+    for (const msg of comments) {
+      $commentList.appendChild(createMessageEl(msg, false));
+    }
+    $commentList.scrollTop = $commentList.scrollHeight;
+  }
+
+  // ── View switching ─────────────────────
+
+  function switchChannel(name) {
+    currentChannel = name;
+    currentView = 'channel';
+    threadPostId = null;
+    clearReplyTo();
+
+    $headerTitle.textContent = '#' + name;
+    $backBtn.style.display = 'none';
+    $channelView.style.display = 'flex';
+    $threadView.style.display = 'none';
+
+    renderChannelList();
+    renderPosts();
+    $postInput.focus();
+  }
+
+  function openThread(post) {
+    currentView = 'thread';
+    threadPostId = post.id;
+
+    $headerTitle.textContent = '#' + currentChannel + ' / thread';
+    $backBtn.style.display = 'flex';
+    $channelView.style.display = 'none';
+    $threadView.style.display = 'flex';
+
+    // Render pinned post
+    $pinnedPost.innerHTML = '';
+    $pinnedPost.appendChild(createMessageEl(post, false));
+
+    renderComments();
+    $commentInput.focus();
+  }
+
+  // ── Input handlers ─────────────────────
+
+  function sendPost() {
+    const text = $postInput.value.trim();
+    if (!text) return;
+    $postInput.value = '';
+    const data = { channel: currentChannel, text };
+    if (replyToMsg) data.replyTo = replyToMsg.id;
+    socket.emit('post', data);
+    clearReplyTo();
+  }
+
+  function sendComment() {
+    const text = $commentInput.value.trim();
+    if (!text || !threadPostId) return;
+    $commentInput.value = '';
+    const data = { channel: currentChannel, text, commentOn: threadPostId };
+    if (replyToMsg) data.replyTo = replyToMsg.id;
+    socket.emit('comment', data);
+    clearReplyTo();
+  }
+
+  $postSend.addEventListener('click', sendPost);
+  $postInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendPost();
+  });
+
+  $commentSend.addEventListener('click', sendComment);
+  $commentInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendComment();
+  });
+
+  $postReplyClear.addEventListener('click', clearReplyTo);
+  $commentReplyClear.addEventListener('click', clearReplyTo);
+
+  $backBtn.addEventListener('click', () => {
+    clearReplyTo();
+    switchChannel(currentChannel);
+  });
+
+  // ── Server/channel management ──────────
+
+  $serverSelect.addEventListener('change', () => {
+    socket.emit('switch-server', $serverSelect.value);
+  });
+
+  $addServerBtn.addEventListener('click', () => {
+    const name = prompt('Server name:');
+    if (name && name.trim()) {
+      socket.emit('create-server', name.trim());
+    }
+  });
+
+  $delServerBtn.addEventListener('click', () => {
+    if (serverNames.length <= 1) return alert('Cannot delete the only server.');
+    if (confirm('Delete server "' + currentServer + '" and all its channels?')) {
+      socket.emit('delete-server', currentServer);
+      // Switch to first remaining server
+      const remaining = serverNames.filter(s => s !== currentServer);
+      if (remaining.length > 0) {
+        socket.emit('switch-server', remaining[0]);
+      }
+    }
+  });
+
+  $addChannelBtn.addEventListener('click', () => {
+    const name = prompt('Channel name:');
+    if (name && name.trim()) {
+      socket.emit('create-channel', name.trim());
+    }
+  });
+
+  // ── Socket.io events ───────────────────
+
+  socket.on('init', (data) => {
+    channelNames = data.channels;
+    allMessages = data.messages;
+    serverNames = data.servers || [];
+    currentServer = data.currentServer || serverNames[0] || 'main';
+    currentChannel = channelNames[0] || 'general';
+
+    renderServers();
+    renderChannelList();
+    renderAgents(data.agents);
+    renderPosts();
+    $postInput.focus();
+    $headerTitle.textContent = '#' + currentChannel;
+  });
+
+  socket.on('message', (msg) => {
+    const channel = msg.channel || 'general';
+    if (!allMessages[channel]) allMessages[channel] = [];
+    allMessages[channel].push(msg);
+
+    if (channel === currentChannel) {
+      if (currentView === 'channel') {
+        // New post or comment arrived — re-render posts to update comment counts
+        if (!msg.commentOn) {
+          $postList.appendChild(createMessageEl(msg, true));
+          $postList.scrollTop = $postList.scrollHeight;
+        } else {
+          // Comment arrived — update the comment count badge on the post
+          renderPosts();
+        }
+      } else if (currentView === 'thread') {
+        // If comment is for current thread, append it
+        if (msg.commentOn && parsePostId(msg.commentOn) === threadPostId) {
+          $commentList.appendChild(createMessageEl(msg, false));
+          $commentList.scrollTop = $commentList.scrollHeight;
+        }
+      }
+    }
+  });
+
+  socket.on('channel-created', (name) => {
+    if (!channelNames.includes(name)) {
+      channelNames.push(name);
+      renderChannelList();
+    }
+  });
+
+  socket.on('channel-deleted', (name) => {
+    channelNames = channelNames.filter(n => n !== name);
+    delete allMessages[name];
+    renderChannelList();
+    if (currentChannel === name) {
+      switchChannel(channelNames[0] || 'general');
+    }
+  });
+
+  socket.on('server-switched', (data) => {
+    currentServer = data.server;
+    channelNames = data.channels;
+    allMessages = data.messages;
+    currentChannel = channelNames[0] || '';
+    currentView = 'channel';
+    threadPostId = null;
+
+    renderServers();
+    renderChannelList();
+    if (currentChannel) {
+      switchChannel(currentChannel);
+    } else {
+      $postList.innerHTML = '';
+      $headerTitle.textContent = 'No channels';
+    }
+  });
+
+  socket.on('servers-updated', (servers) => {
+    serverNames = servers;
+    renderServers();
+  });
+
+  socket.on('agents-changed', (names) => {
+    renderAgents(names);
+  });
+
+  socket.on('log', (data) => {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = '<span class="log-agent">[' + escapeHtml(data.agent) + ']</span> ' + escapeHtml(data.message);
+    $logPanel.appendChild(entry);
+    $logPanel.scrollTop = $logPanel.scrollHeight;
+  });
+
+  socket.on('error', (data) => {
+    console.error('Sandbox error:', data.message);
+  });
+})();
+</script>
+</body>
+</html>

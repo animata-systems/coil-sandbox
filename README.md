@@ -17,6 +17,74 @@ Sandbox host environment for COIL. Runs COIL scripts locally with simulated chan
 | Budget | Configurable token and step limits |
 | Event log | Step-by-step execution trace |
 
+## Prerequisites
+
+- Node.js >= 18
+- npm
+
+## Setup
+
+Install dependencies:
+
+```sh
+npm install
+```
+
+### Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `OPENAI_API_KEY` | if using `openai/*` models | API key for OpenAI |
+| `ANTHROPIC_API_KEY` | if using `anthropic/*` models | API key for Anthropic |
+
+At least one key must be set — it depends on which models are declared in app's `config.yml`.
+
+## Run
+
+Development mode (auto-reload on changes):
+
+```sh
+npm run dev
+```
+
+Production (after build):
+
+```sh
+npm run build
+npm start
+```
+
+Both commands launch the default demo app and open a web UI at `http://localhost:3000`.
+
+To run a different app or pass options:
+
+```sh
+# dev
+npx tsx cli/index.ts <app-path> [--dialect <path>]
+
+# production
+node dist/cli/index.js <app-path> [--dialect <path>]
+```
+
+`--dialect` defaults to the standard Russian dialect from `coil-runtime`.
+
+### Type check (no emit)
+
+```sh
+npx tsc --noEmit
+```
+
+## Web UI
+
+The sandbox serves a browser-based interface via Express + Socket.io:
+
+- **Left panel** — channel list, agents, protocol log
+- **Right panel** — messages in the selected channel
+- Click a message to open its **thread view** (pinned post + comments)
+- Click a channel to switch back
+
+Messages from agents appear in real time as protocols execute.
+
 ## Intended use
 
 - **Learning COIL** — run examples and patterns from the spec locally
@@ -27,20 +95,6 @@ Sandbox host environment for COIL. Runs COIL scripts locally with simulated chan
 ## Not intended for
 
 Production deployment. The sandbox is a development and exploration tool. For production, implement the SDK interfaces against your own host environment (see [coil-runtime](https://github.com/animata-systems/coil-runtime)).
-
-## Status
-
-Planned. Development begins after coil-runtime phases 1–5 are complete.
-
-| Component | Status |
-|---|---|
-| In-memory channel provider | Planned |
-| Mock participant provider | Planned |
-| Mock tool provider | Planned |
-| LLM provider (real API) | Planned |
-| Budget policy | Planned |
-| Web UI for message space | Planned |
-| Execution trace viewer | Planned |
 
 ## Related
 

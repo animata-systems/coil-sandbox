@@ -1,0 +1,11 @@
+tools:
+  word-count:
+    description: Count words and characters in text
+    args:
+      text: { type: string, required: true }
+
+  format-text:
+    description: Format text with specified style
+    args:
+      text: { type: string, required: true }
+      style: { type: string, required: false }

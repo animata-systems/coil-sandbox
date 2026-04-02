@@ -1,0 +1,36 @@
+{
+  "name": "coil-sandbox",
+  "version": "0.1.0",
+  "description": "Sandbox host environment for COIL",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "bin": {
+    "coil-sandbox": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch cli/index.ts apps/arena",
+    "start": "node dist/cli/index.js apps/arena",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "coil": "github:animata-systems/coil",
+    "coil-runtime": "github:animata-systems/coil-runtime",
+    "ai": "^5.0.52",
+    "@ai-sdk/openai": "^2.0.0",
+    "@ai-sdk/anthropic": "^2.0.0",
+    "zod": "^3.23.8",
+    "express": "^5.1.0",
+    "socket.io": "^4.8.0",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
