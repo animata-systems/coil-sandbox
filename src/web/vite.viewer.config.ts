@@ -1,5 +1,5 @@
 /**
- * Vite config for the agent viewer bundle (STORY-015 phase 5).
+ * Vite config for the agent viewer bundle.
  *
  * Builds a single ES module that is loaded from index.html via
  * <script type="module" defer src="/agent-viewer.js"></script>. The bundle
@@ -7,7 +7,7 @@
  * React root into #agent-viewer-root on demand.
  *
  * Monaco is *not* bundled — @monaco-editor/react loads it from jsdelivr CDN
- * at runtime (decision: dev-architect phase 5 review).
+ * at runtime (see coil-sandbox/DESIGN.md S-0001 for the integration decision).
  *
  * Output goes directly into src/web/public/ next to index.html so it is served
  * by the existing Express static handler. emptyOutDir is false — we must not
@@ -27,6 +27,16 @@ export default defineConfig({
   // Prevent Vite from picking up coil-sandbox/index.html as the app entry.
   // We only build a single JS bundle via build.lib.
   appType: 'custom',
+
+  // In library mode Vite does NOT replace process.env.NODE_ENV by default —
+  // it assumes the consumer does the substitution. But this bundle IS its
+  // own consumer (loaded via a plain <script> tag in vanilla HTML), so
+  // React and other `if (process.env.NODE_ENV !== 'production')` checks
+  // throw `ReferenceError: process is not defined` in the browser. Force
+  // the production constant into the bundle here.
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+  },
 
   resolve: {
     // Guard against double React copies when coil-ide (git-dep) and the

@@ -7,6 +7,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Agent viewer styles. Tailwind + coil-ide theme — bundled separately
+     from the viewer JS because Vite library-mode does not auto-inject the
+     emitted CSS chunk. Scoped to the modal island via its own classes. -->
+<link rel="stylesheet" href="/agent-viewer.css">
+<!--
+  The vanilla sandbox styles below are intentionally UNLAYERED. agent-viewer.css
+  brings in Tailwind v4 preflight (star reset, button reset, margin reset) via
+  `@layer base`, and in the CSS cascade unlayered rules always beat rules in any
+  @layer. That is the ONLY thing keeping preflight from nuking our buttons,
+  inputs and headings. Do NOT wrap this <style> block in an @layer — viewer CSS
+  will start leaking into the sandbox UI the moment you do.
+-->
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 

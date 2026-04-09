@@ -11,3 +11,15 @@
  * inside the viewer island — vanilla sandbox page stays untouched.
  */
 @import "coil-ide/theme.css";
+
+/*
+ * Explicit content source for Tailwind v4 JIT. In library-mode Vite builds
+ * (`build.lib`), `@tailwindcss/vite` does not auto-discover local sources
+ * the way it does for regular app builds, so utility classes used in
+ * AgentViewer.tsx and main.tsx (`bg-ide-panel`, `border-border`, etc.)
+ * are never generated and the modal renders unstyled. Adding this directive
+ * — path is relative to this CSS file — makes JIT scan the viewer
+ * directory. The `@source` inside coil-ide/theme.css covers node_modules
+ * sources only; it does NOT reach into the sandbox repo.
+ */
+@source "./**/*.{ts,tsx}";
