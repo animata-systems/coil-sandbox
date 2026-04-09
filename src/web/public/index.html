@@ -610,6 +610,10 @@
 <script>
 (function() {
   const socket = io();
+  // Expose the live socket to the React agent-viewer island (see
+  // src/web/viewer/main.tsx). The viewer bundle is loaded via
+  // <script type="module" defer> below, so this assignment runs first.
+  window.__coilSocket = socket;
 
   // ── State ──────────────────────────────
   let currentChannel = '';
@@ -741,7 +745,9 @@
       const div = document.createElement('div');
       div.className = 'agent';
       div.textContent = name;
-      div.addEventListener('click', () => insertMention(name));
+      // Click opens the React agent-viewer modal (COIL-C / COIL-H toggle,
+      // read-only). `insertMention` stays available for other entry points.
+      div.addEventListener('click', () => window.openAgentViewer?.(name));
       $agentList.appendChild(div);
     }
   }
@@ -1079,5 +1085,11 @@
   });
 })();
 </script>
+
+<!-- React agent-viewer island. Mounted lazily by /agent-viewer.js on first
+     window.openAgentViewer() call. Bundle is built from src/web/viewer/ via
+     `npm run build:viewer`. -->
+<div id="agent-viewer-root"></div>
+<script type="module" defer src="/agent-viewer.js"></script>
 </body>
 </html>

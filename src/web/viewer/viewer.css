@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+/*
+ * coil-ide ships its palette, @theme inline tokens, and @custom-variant dark
+ * as a subpath export (see coil-ide/DESIGN.md I-0008). Importing it here
+ * gives the viewer the same --color-foreground / --color-ide-panel /
+ * --color-primary / etc. that the coil-ide playground uses, so CoilHTable
+ * and EditorView render with the expected visual language. The `.dark`
+ * variant is scoped to `&:where(.dark, .dark *)`, so wrapping the viewer
+ * React root in `<div className="dark">` activates the dark palette only
+ * inside the viewer island — vanilla sandbox page stays untouched.
+ */
+@import "coil-ide/theme.css";
