@@ -15,15 +15,15 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.0",
+    "@ai-sdk/openai": "^2.0.0",
+    "ai": "^5.0.52",
     "coil": "github:animata-systems/coil",
     "coil-runtime": "github:animata-systems/coil-runtime",
-    "ai": "^5.0.52",
-    "@ai-sdk/openai": "^2.0.0",
-    "@ai-sdk/anthropic": "^2.0.0",
-    "zod": "^3.23.8",
     "express": "^5.1.0",
     "socket.io": "^4.8.0",
-    "yaml": "^2.6.0"
+    "yaml": "^2.6.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@monaco-editor/react": "^4.7.0",
