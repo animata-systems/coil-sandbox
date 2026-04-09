@@ -124,6 +124,28 @@ export async function createWebUI(sandbox: Sandbox, port = Number(process.env.PO
         socket.emit('error', { message: (err as Error).message });
       }
     });
+
+    // ── Agent source (read-only) ──────────────────
+    // Contract: client emits 'get-agent-source' with an agent name and an ack
+    // callback. Server responds via the callback with either { source } on
+    // success or { error } if the agent is not loaded. The source text comes
+    // from AgentEntry.source (already in memory — no disk I/O). Used by the
+    // React agent viewer island (see coil-sandbox/DESIGN.md S-0001).
+    socket.on(
+      'get-agent-source',
+      (
+        agentName: string,
+        ack: (response: { source: string } | { error: string }) => void,
+      ) => {
+        if (typeof ack !== 'function') return;
+        const entry = sandbox.getAgent(agentName);
+        if (!entry) {
+          ack({ error: 'agent not found' });
+          return;
+        }
+        ack({ source: entry.source });
+      },
+    );
   });
 
   // Forward channel events to all connected clients

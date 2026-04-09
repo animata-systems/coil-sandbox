@@ -6,7 +6,7 @@
  */
 
 import { resolve } from 'node:path';
-import type { LoadedApp } from '../loader/types.js';
+import type { LoadedApp, AgentEntry } from '../loader/types.js';
 import { loadApp } from '../loader/index.js';
 import { SandboxModelProvider } from '../providers/model-provider.js';
 import { SandboxChannelProvider, shortId, type MessageEnvelope } from '../providers/channel-provider.js';
@@ -86,6 +86,11 @@ export class Sandbox {
   /** Get loaded agent names. */
   getAgentNames(): string[] {
     return this.app ? [...this.app.agents.keys()] : [];
+  }
+
+  /** Get a loaded agent by name (read-only). Returns null if not found. */
+  getAgent(name: string): AgentEntry | null {
+    return this.app?.agents.get(name) ?? null;
   }
 
   /** List available servers. */
