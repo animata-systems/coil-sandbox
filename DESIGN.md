@@ -227,4 +227,41 @@ Block ПОЛУЧИ (`prompt !== null`) — заглушка: лог «not yet su
 **Цена.**
 - **Порядок ПОЛУЧИ в скрипте влияет на порядок yield'ов.** Executor yield'ит на каждом ПОЛУЧИ последовательно. Protocol-runner resume'ит каждый мгновенно (для inline), но порядок важен при дебаге — логи будут показывать yields в порядке объявления.
 - **Список built-in ресурсов жёстко закодирован** (`message`, `thread`). Добавление нового built-in ресурса требует правки routing'а. Если количество ресурсов вырастет, стоит вынести в реестр. Для двух — YAGNI.
-- **Block ПОЛУЧИ временно нефункционален.** Протокол с блочным ПОЛУЧИ молча останавливается до фазы 4.
+- **Block ПОЛУЧИ временно нефункционален.** ~~Протокол с блочным ПОЛУЧИ молча останавливается до фазы 4.~~ Закрыто S-0006.
+
+---
+
+## S-0006 — Block ПОЛУЧИ: интерактивный промпт пользователю через Socket.IO
+
+| | |
+|---|---|
+| **Статус** | принят |
+| **Решено** | 2026-04-10 |
+| **Scope** | `src/engine/protocol-runner.ts`, `src/engine/sandbox.ts`, `src/web/server.ts`, `src/web/public/index.html` |
+| **Связан с** | S-0005, STORY-016 фаза 4 |
+
+**Контекст.** S-0005 оставил block ПОЛУЧИ (форму с телом-промптом) нефункциональным — протокол останавливался при встрече `prompt !== null`. Фаза 4 STORY-016 требует: если протокол запущен пользователем и встретил block ПОЛУЧИ — показать промпт в UI, собрать ответ, resume с ним. Если запущен агентом — resume с пустой строкой.
+
+**Решение.** Callback-архитектура: protocol-runner не знает о транспорте.
+
+Три слоя:
+
+1. **`ProtocolContext.onPromptUser`** — опциональный callback `(agentName: string, prompt: string) => Promise<string>`. Protocol-runner вызывает его при `prompt !== null && triggerMessage.from === '@user'`. При agent-triggered — resume с `{ type: 'ReceiveValue', value: '' }`.
+
+2. **`Sandbox.setPromptHandler`** — setter, аналогичный `setLogger`. Server.ts подставляет реализацию. Sandbox передаёт callback в `ProtocolContext` при создании.
+
+3. **Socket.IO мост** (`server.ts`): `pendingPrompts: Map<string, (value: string) => void>`. Prompt handler генерирует `requestId` (UUID), emit'ит `'agent-prompt'` с `{ agentName, prompt, requestId }`, ждёт `'agent-prompt-reply'` с `{ requestId, value }`. Клиент показывает inline-промпт в текущей области сообщений.
+
+**Таймаут** (`НЕ БОЛЕЕ`): `timeoutMs` добавлен в `YieldDetail` для receive (coil-runtime, R-серия). Protocol-runner использует `Promise.race` с `setTimeout`. При таймауте resume с `{ type: 'Timeout' }` → executor бросает `ExecutionError`. Timer очищается через `clearTimeout` в `finally` при успешном ответе. Sentinel — `Symbol('prompt-timeout')`, не строковый матч.
+
+**Клиент** (`index.html`): обработчик `socket.on('agent-prompt', ...)` создаёт DOM-элемент с заголовком `'{agentName} asks:'`, текстом промпта, input + Reply. После ответа — элемент заменяется статическим подтверждением с галочкой.
+
+**Почему.**
+- Callback в ProtocolContext — единственная точка связи между runner'ом и транспортом. Runner не знает о Socket.IO, серверах, DOM.
+- `setPromptHandler` по аналогии с `setLogger` — консистентный паттерн. Не требует изменения конструктора Sandbox.
+- `requestId` (UUID) — для корректного матча в случае нескольких одновременных промптов от разных агентов.
+
+**Цена.**
+- **`pendingPrompts` без cleanup.** Если пользователь не отвечает и таймаута в COIL нет, entry висит вечно. Protocol-runner тоже висит. Это соответствует спеке («не продолжается, пока значение не получено»), но map растёт. Cleanup при disconnect сокета — возможное улучшение.
+- **Broadcast.** `io.emit('agent-prompt', ...)` отправляет всем подключённым клиентам. Любой из них может ответить. Для single-user sandbox приемлемо; при многопользовательском сценарии потребуется адресная доставка по socket id.
+- **Agent-triggered → пустая строка.** Story-критерий говорит «resume с null», реализация — с `''`. `ReceiveValue.value` типизирован как `string`, `null` — type violation. Пустая строка корректна по completion contract спеки.

@@ -21,6 +21,7 @@ export class Sandbox {
   private modelProvider: SandboxModelProvider | null = null;
   private dialectPath: string;
   private onLog: (agent: string, msg: string) => void = () => {};
+  private promptUser: ((agentName: string, prompt: string) => Promise<string>) | null = null;
 
   constructor(dialectPath: string) {
     this.dialectPath = dialectPath;
@@ -29,6 +30,11 @@ export class Sandbox {
   /** Set log callback (TUI will provide this). */
   setLogger(fn: (agent: string, msg: string) => void): void {
     this.onLog = fn;
+  }
+
+  /** Set prompt-user callback for block ПОЛУЧИ (web UI will provide this). */
+  setPromptHandler(fn: (agentName: string, prompt: string) => Promise<string>): void {
+    this.promptUser = fn;
   }
 
   /** Load an application from disk. */
@@ -196,6 +202,7 @@ export class Sandbox {
         onLog: this.onLog,
         rootPostId,
         rootChannel,
+        onPromptUser: this.promptUser ?? undefined,
       };
 
       runProtocol(agent, envelope, ctx).catch(err => {

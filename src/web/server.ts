@@ -6,6 +6,7 @@
  */
 
 import { createServer } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +31,9 @@ export async function createWebUI(sandbox: Sandbox, port = Number(process.env.PO
   const io = new SocketIOServer(httpServer);
 
   const channels = sandbox.getChannels();
+
+  // Pending block-ПОЛУЧИ prompts keyed by requestId; resolved when client replies.
+  const pendingPrompts = new Map<string, (value: string) => void>();
 
   // Serve static files
   app.use(express.static(resolvePublicDir()));
@@ -146,6 +150,18 @@ export async function createWebUI(sandbox: Sandbox, port = Number(process.env.PO
         ack({ source: entry.source });
       },
     );
+
+    // Block ПОЛУЧИ: client sends reply to an agent prompt
+    socket.on(
+      'agent-prompt-reply',
+      (reply: { requestId: string; value: string }) => {
+        const resolve = pendingPrompts.get(reply.requestId);
+        if (resolve) {
+          pendingPrompts.delete(reply.requestId);
+          resolve(reply.value);
+        }
+      },
+    );
   });
 
   // Forward channel events to all connected clients
@@ -164,6 +180,15 @@ export async function createWebUI(sandbox: Sandbox, port = Number(process.env.PO
   // Forward protocol logs
   sandbox.setLogger((agent: string, msg: string) => {
     io.emit('log', { agent, message: msg });
+  });
+
+  // Block ПОЛУЧИ: prompt user via Socket.IO
+  sandbox.setPromptHandler((agentName: string, prompt: string): Promise<string> => {
+    const requestId = randomUUID();
+    return new Promise<string>((resolvePrompt) => {
+      pendingPrompts.set(requestId, resolvePrompt);
+      io.emit('agent-prompt', { agentName, prompt, requestId });
+    });
   });
 
   // Start server

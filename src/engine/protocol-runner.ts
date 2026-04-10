@@ -48,6 +48,12 @@ export interface ProtocolContext {
   /** Root post that started the entire chain. All agent messages are comments on it. */
   rootPostId?: string;
   rootChannel?: string;
+  /**
+   * Block ПОЛУЧИ callback: show a prompt to the user and collect a response.
+   * Called only when the protocol was triggered by @user.
+   * Returns the user's answer (string).
+   */
+  onPromptUser?: (agentName: string, prompt: string) => Promise<string>;
 }
 
 export async function runProtocol(
@@ -120,12 +126,65 @@ export async function runProtocol(
     onLog(agent.name, `Yield: ${yr.detail.type}`);
 
     if (yr.detail.type === 'receive') {
-      const { variableName, prompt } = yr.detail;
+      const { variableName, prompt, timeoutMs } = yr.detail;
 
       if (prompt !== null) {
-        // Block receive (with body-prompt) — Phase 4
-        onLog(agent.name, `Block ПОЛУЧИ not yet supported: ${variableName}`);
-        break;
+        // Block receive (with body-prompt): ask user for input or skip if agent-triggered
+        if (triggerMessage.from === '@user' && ctx.onPromptUser) {
+          onLog(agent.name, `Prompting user: ${prompt}`);
+
+          let receiveValue: unknown;
+          const PROMPT_TIMEOUT = Symbol('prompt-timeout');
+          try {
+            if (timeoutMs !== null && timeoutMs > 0) {
+              // Race prompt against timeout; clear timer on success
+              let timerId: ReturnType<typeof setTimeout>;
+              const timer = new Promise<never>((_, reject) => {
+                timerId = setTimeout(() => reject(PROMPT_TIMEOUT), timeoutMs);
+              });
+              try {
+                receiveValue = await Promise.race([
+                  ctx.onPromptUser(agent.name, prompt),
+                  timer,
+                ]);
+              } finally {
+                clearTimeout(timerId!);
+              }
+            } else {
+              receiveValue = await ctx.onPromptUser(agent.name, prompt);
+            }
+          } catch (err) {
+            if (err === PROMPT_TIMEOUT) {
+              onLog(agent.name, `Block ПОЛУЧИ timed out: ${variableName}`);
+              result = await resume(
+                yr.snapshot,
+                { type: 'Timeout' },
+                ast,
+                providers,
+              );
+              continue;
+            }
+            throw err;
+          }
+
+          result = await resume(
+            yr.snapshot,
+            { type: 'ReceiveValue', value: receiveValue as string },
+            ast,
+            providers,
+          );
+          continue;
+        } else {
+          // Agent-triggered protocol — agents can't respond to prompts
+          onLog(agent.name, `Block ПОЛУЧИ skipped (not user-triggered): ${variableName}`);
+          result = await resume(
+            yr.snapshot,
+            { type: 'ReceiveValue', value: '' },
+            ast,
+            providers,
+          );
+          continue;
+        }
       }
 
       // Inline receive — route by variableName.

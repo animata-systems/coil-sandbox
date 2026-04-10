@@ -558,6 +558,64 @@
     border-radius: 50%;
     margin-bottom: 8px;
   }
+
+  /* ── Agent prompt (block ПОЛУЧИ) ──── */
+
+  .agent-prompt {
+    padding: 14px 18px;
+    margin-bottom: 8px;
+    border-radius: var(--radius);
+    background: var(--accent-glow);
+    border: 1px solid var(--accent-dim);
+  }
+  .agent-prompt .prompt-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-light);
+    margin-bottom: 8px;
+  }
+  .agent-prompt .prompt-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+    margin-bottom: 12px;
+    white-space: pre-wrap;
+  }
+  .agent-prompt .prompt-input-row {
+    display: flex;
+    gap: 8px;
+  }
+  .agent-prompt .prompt-input-row input {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: var(--transition);
+  }
+  .agent-prompt .prompt-input-row input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .agent-prompt .prompt-input-row button {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
+    color: var(--text-bright);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .agent-prompt .prompt-input-row button:hover {
+    opacity: 0.9;
+  }
 </style>
 </head>
 <body>
@@ -1094,6 +1152,46 @@
 
   socket.on('error', (data) => {
     console.error('Sandbox error:', data.message);
+  });
+
+  // ── Block ПОЛУЧИ: agent prompt UI ──
+  socket.on('agent-prompt', (data) => {
+    // data: { agentName, prompt, requestId }
+    // Show inline prompt in the current message area (thread or channel view)
+    const container = currentView === 'thread' ? $commentList : $postList;
+
+    const div = document.createElement('div');
+    div.className = 'agent-prompt';
+    div.innerHTML =
+      '<div class="prompt-header">' + escapeHtml(data.agentName) + ' asks:</div>' +
+      '<div class="prompt-text">' + escapeHtml(data.prompt) + '</div>' +
+      '<div class="prompt-input-row">' +
+        '<input type="text" placeholder="Your answer\u2026" autocomplete="off">' +
+        '<button>Reply</button>' +
+      '</div>';
+
+    const input = div.querySelector('input');
+    const btn = div.querySelector('button');
+
+    function submitReply() {
+      const value = input.value.trim();
+      if (!value) return;
+      socket.emit('agent-prompt-reply', { requestId: data.requestId, value: value });
+      // Replace prompt with a static message showing the answer
+      div.innerHTML =
+        '<div class="prompt-header">' + escapeHtml(data.agentName) + ' asked:</div>' +
+        '<div class="prompt-text">' + escapeHtml(data.prompt) + '</div>' +
+        '<div style="font-size:13px;color:var(--green);margin-top:4px;">\u2713 ' + escapeHtml(value) + '</div>';
+    }
+
+    btn.addEventListener('click', submitReply);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitReply();
+    });
+
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    input.focus();
   });
 })();
 </script>

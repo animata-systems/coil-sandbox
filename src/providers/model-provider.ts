@@ -36,25 +36,36 @@ export class SandboxModelProvider implements ModelProvider {
       needed.add(provider);
     }
 
-    if (needed.has('openai') && process.env.OPENAI_API_KEY) {
-      this.providers.set('openai', createOpenAI({ apiKey: process.env.OPENAI_API_KEY }));
+    for (const name of needed) {
+      this.ensureProvider(name);
     }
-    if (needed.has('anthropic') && process.env.ANTHROPIC_API_KEY) {
+  }
+
+  /** Lazily create a provider factory if API key is available. */
+  private ensureProvider(name: string): void {
+    if (this.providers.has(name)) return;
+    if (name === 'openai' && process.env.OPENAI_API_KEY) {
+      this.providers.set('openai', createOpenAI({ apiKey: process.env.OPENAI_API_KEY }));
+    } else if (name === 'anthropic' && process.env.ANTHROPIC_API_KEY) {
       this.providers.set('anthropic', createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY }));
     }
   }
 
   async call(config: ModelCallConfig): Promise<ModelResult> {
-    // Resolve alias: ЧЕРЕЗ $fast → "openai/gpt-4o-mini"
-    const alias = config.via ?? Object.keys(this.models)[0] ?? 'default';
-    const modelSpec = this.models[alias];
-    if (!modelSpec) {
+    // config.via is a direct provider/model spec (e.g. "openai/gpt-5.4-nano")
+    const modelSpec = config.via ?? Object.values(this.models)[0] ?? 'openai/default';
+
+    const [providerName, ...rest] = modelSpec.split('/');
+    const modelId = rest.join('/');
+    if (!providerName || !modelId) {
       throw new Error(
-        `Unknown model alias: "${alias}". Available: ${Object.keys(this.models).join(', ')}`,
+        `Invalid model spec: "${modelSpec}". Expected "provider/model" format.`,
       );
     }
 
-    const [providerName, modelId] = modelSpec.split('/');
+    // Ensure provider is initialized
+    this.ensureProvider(providerName);
+
     const providerFactory = this.providers.get(providerName);
     if (!providerFactory) {
       throw new Error(
