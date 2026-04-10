@@ -12,11 +12,13 @@
  *   - query:    reasoning=none|low|medium|high
  */
 
-import { generateText, generateObject } from 'ai';
+import { generateText, generateObject, Output, tool, stepCountIs } from 'ai';
+import type { LanguageModel } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import type { ModelProvider, ModelCallConfig, ModelResult } from 'coil-runtime/sdk';
+import type { ToolEntry, ToolMeta, ArgMeta } from '../loader/types.js';
 
 // ResultSchemaField is not re-exported from coil-runtime/sdk,
 // so we extract it from ModelCallConfig.resultSchema.
@@ -29,6 +31,15 @@ interface ParsedModelUri {
   provider: string;
   modelId: string;
   params: URLSearchParams;
+}
+
+/** Resolved model + prompt ready for an AI SDK call. */
+interface ResolvedCall {
+  model: LanguageModel;
+  system: string | undefined;
+  prompt: string;
+  providerOptions: Record<string, Record<string, string>> | undefined;
+  logSpec: string;
 }
 
 /** Parse `llm://provider/model-id?params` into components. */
@@ -117,7 +128,8 @@ export class SandboxModelProvider implements ModelProvider {
     }
   }
 
-  async call(config: ModelCallConfig): Promise<ModelResult> {
+  /** Resolve model, build system prompt, prepare everything for an AI SDK call. */
+  private resolveCall(config: ModelCallConfig): ResolvedCall {
     const modelUri = config.via ?? Object.values(this.models)[0];
     if (!modelUri) {
       throw new Error('No model configured. Add models to config.yml.');
@@ -150,6 +162,12 @@ export class SandboxModelProvider implements ModelProvider {
     }
     const system = systemParts.join('\n\n') || undefined;
     const prompt = config.input ?? config.body ?? '';
+
+    return { model, system, prompt, providerOptions, logSpec };
+  }
+
+  async call(config: ModelCallConfig): Promise<ModelResult> {
+    const { model, system, prompt, providerOptions, logSpec } = this.resolveCall(config);
     const promptLen = (system?.length ?? 0) + prompt.length;
 
     // If РЕЗУЛЬТАТ is defined, use generateObject for structured output
@@ -203,6 +221,92 @@ export class SandboxModelProvider implements ModelProvider {
       throw err;
     }
   }
+
+  /**
+   * Call a model with tools available for LLM-driven invocation.
+   *
+   * Uses generateText with tools + experimental_output (Output.object) when
+   * structured output is needed. AI SDK handles the full cycle: tool calls,
+   * result injection, and structured output extraction in a single call.
+   */
+  async callWithTools(
+    config: ModelCallConfig,
+    resolvedTools: Map<string, ToolEntry>,
+  ): Promise<ModelResult> {
+    const { model, system, prompt, providerOptions, logSpec } = this.resolveCall(config);
+
+    // Build AI SDK tools from resolved ToolEntry metadata + handlers
+    const aiTools: Record<string, any> = {};
+    for (const [abstractName, entry] of resolvedTools) {
+      const inputSchema = argMetaToZod(entry.meta.args);
+      aiTools[abstractName] = tool({
+        description: entry.meta.description,
+        inputSchema,
+        execute: async (args: Record<string, unknown>) => {
+          console.log(`[model:tool] ${abstractName} called by LLM`);
+          const result = await entry.handler(args);
+          const preview = typeof result === 'string'
+            ? result.slice(0, 120) + (result.length > 120 ? '…' : '')
+            : JSON.stringify(result).slice(0, 120);
+          console.log(`[model:tool] ${abstractName} ✓ ${preview}`);
+          return result;
+        },
+      });
+    }
+
+    const toolNames = Object.keys(aiTools).join(', ');
+    const promptLen = (system?.length ?? 0) + prompt.length;
+    const hasSchema = config.resultSchema && config.resultSchema.length > 0;
+
+    console.log(`[model] generateText+tools → ${logSpec} | tools: [${toolNames}]${hasSchema ? ' +schema' : ''} | prompt: ${promptLen} chars`);
+
+    try {
+      const result = await generateText({
+        model,
+        system,
+        prompt,
+        tools: aiTools,
+        stopWhen: [stepCountIs(5)],
+        ...(hasSchema ? {
+          output: Output.object({ schema: buildZodSchema(config.resultSchema!) }),
+        } : {}),
+        ...(providerOptions ? { providerOptions } : {}),
+      });
+
+      const tokens = result.usage?.totalTokens;
+      const steps = result.steps?.length ?? 1;
+      console.log(`[model] generateText+tools ✓ ${steps} step(s)${tokens != null ? ` (${tokens} tokens)` : ''}`);
+
+      return {
+        output: hasSchema ? result.output : result.text,
+        usage: tokens != null ? { tokens } : undefined,
+      };
+    } catch (err) {
+      console.error(`[model] generateText+tools ✗ ${(err as Error).message}`);
+      throw err;
+    }
+  }
+}
+
+// -- Tool schema builder ------------------------------------
+
+/**
+ * Converts ToolMeta.args (from list.yml) into a Zod object schema
+ * suitable for AI SDK tool({ inputSchema }).
+ */
+function argMetaToZod(args: Record<string, ArgMeta>): z.ZodObject<Record<string, z.ZodTypeAny>> {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const [name, arg] of Object.entries(args)) {
+    let t: z.ZodTypeAny;
+    switch (arg.type) {
+      case 'number':  t = z.number(); break;
+      case 'boolean': t = z.boolean(); break;
+      case 'object':  t = z.record(z.string(), z.unknown()); break;
+      default:        t = z.string(); break;
+    }
+    shape[name] = arg.required ? t : t.optional();
+  }
+  return z.object(shape);
 }
 
 // -- Schema builder -----------------------------------------

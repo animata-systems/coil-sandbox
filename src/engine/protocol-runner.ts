@@ -29,9 +29,11 @@ import type {
   YieldRequest,
   ExecutionSnapshot,
   Message,
+  ModelProvider,
+  ModelCallConfig,
+  ModelResult,
 } from 'coil-runtime/sdk';
-
-import type { LoadedApp, AgentEntry } from '../loader/types.js';
+import type { LoadedApp, AgentEntry, ToolEntry } from '../loader/types.js';
 import { detectDialect } from '../utils/detect-dialect.js';
 import { SandboxModelProvider } from '../providers/model-provider.js';
 import { SandboxToolProvider } from '../providers/tool-provider.js';
@@ -112,8 +114,26 @@ export async function runProtocol(
     app.tools,
   );
 
+  // Wrap model provider: when ДУМАЙ has ИСПОЛЬЗУЯ, resolve tools and
+  // pass them to the LLM for autonomous tool calling.
+  const agentModelProvider: ModelProvider = {
+    async call(config: ModelCallConfig): Promise<ModelResult> {
+      if (config.using.length > 0) {
+        const resolved = resolveToolsForModel(
+          config.using,
+          agent.config.tools,
+          app.tools,
+        );
+        if (resolved.size > 0) {
+          return ctx.modelProvider.callWithTools(config, resolved);
+        }
+      }
+      return ctx.modelProvider.call(config);
+    },
+  };
+
   const providers = {
-    model: ctx.modelProvider,
+    model: agentModelProvider,
     tool: toolProvider,
     participant: ctx.participantProvider,
     channel: createAgentChannelProxy(agent.name, triggerMessage, rootPostId, rootChannel, ctx),
@@ -422,6 +442,34 @@ async function handleAwaitReplies(
       }
     },
   );
+}
+
+// ── Tool resolution for model provider ─────────────────────
+
+/**
+ * Resolve abstract tool names (from ИСПОЛЬЗУЯ in COIL script) to ToolEntry objects.
+ * Uses the agent's tool mapping (abstract → concrete) and the app tool registry.
+ */
+function resolveToolsForModel(
+  abstractNames: string[],
+  agentTools: Record<string, string>,
+  toolRegistry: Map<string, ToolEntry>,
+): Map<string, ToolEntry> {
+  const resolved = new Map<string, ToolEntry>();
+  for (const name of abstractNames) {
+    const concretePath = agentTools[name];
+    if (!concretePath) {
+      console.warn(`[model:tools] Tool "${name}" not mapped for this agent, skipping`);
+      continue;
+    }
+    const entry = toolRegistry.get(concretePath);
+    if (!entry) {
+      console.warn(`[model:tools] Tool "${concretePath}" not found in registry, skipping`);
+      continue;
+    }
+    resolved.set(name, entry);
+  }
+  return resolved;
 }
 
 // ── Dialect resolution ─────────────────────────────────────
