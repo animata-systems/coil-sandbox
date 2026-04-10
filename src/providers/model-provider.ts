@@ -2,8 +2,14 @@
  * ModelProvider: routes ДУМАЙ calls to LLM via Vercel AI SDK.
  *
  * Uses ai-sdk for unified access to OpenAI, Anthropic, Google, etc.
- * Resolves model alias (e.g. "fast") → provider/model (e.g. "openai/gpt-4o-mini")
+ * Resolves model alias (e.g. "fast") → URI (e.g. "llm://openai/gpt-5.4-nano")
  * using the models map from config.yml.
+ *
+ * URI format: llm://provider/model-id?params
+ *   - scheme:   llm:// (required)
+ *   - host:     provider name (openai, anthropic, …)
+ *   - path:     model identifier (/gpt-5.4, /claude-sonnet-4-5-20250514, …)
+ *   - query:    reasoning=none|low|medium|high
  */
 
 import { generateText, generateObject } from 'ai';
@@ -19,23 +25,83 @@ type ResultSchema = ResultSchemaField['schema'];
 
 type ProviderFactory = ReturnType<typeof createOpenAI> | ReturnType<typeof createAnthropic>;
 
+interface ParsedModelUri {
+  provider: string;
+  modelId: string;
+  params: URLSearchParams;
+}
+
+/** Parse `llm://provider/model-id?params` into components. */
+function parseModelUri(uri: string): ParsedModelUri {
+  let url: URL;
+  try {
+    url = new URL(uri);
+  } catch {
+    throw new Error(
+      `Invalid model URI: "${uri}". Expected format: llm://provider/model-id`,
+    );
+  }
+
+  if (url.protocol !== 'llm:') {
+    throw new Error(
+      `Invalid model URI scheme: "${url.protocol}" in "${uri}". Expected "llm:".`,
+    );
+  }
+
+  const provider = url.hostname;
+  const modelId = url.pathname.slice(1); // strip leading "/"
+
+  if (!provider) {
+    throw new Error(
+      `Missing provider in model URI: "${uri}". Expected format: llm://provider/model-id`,
+    );
+  }
+  if (!modelId) {
+    throw new Error(
+      `Missing model ID in model URI: "${uri}". Expected format: llm://provider/model-id`,
+    );
+  }
+
+  return { provider, modelId, params: url.searchParams };
+}
+
+/** Build AI SDK providerOptions from URI query params. */
+function buildProviderOptions(
+  providerName: string,
+  params: URLSearchParams,
+): Record<string, Record<string, string>> | undefined {
+  const reasoning = params.get('reasoning');
+  if (!reasoning) return undefined;
+
+  if (providerName === 'openai') {
+    return { openai: { reasoningEffort: reasoning } };
+  }
+
+  return { [providerName]: { reasoning } };
+}
+
 export class SandboxModelProvider implements ModelProvider {
-  private models: Record<string, string>;   // alias → provider/model
+  private models: Record<string, string>;   // alias → llm:// URI
   private providers = new Map<string, ProviderFactory>();
 
   constructor(models: Record<string, string>) {
     this.models = models;
+    // Validate all URIs early — fail at startup, not at call time
+    for (const [alias, uri] of Object.entries(models)) {
+      try {
+        parseModelUri(uri);
+      } catch (err) {
+        throw new Error(`Model "${alias}": ${(err as Error).message}`);
+      }
+    }
     this.initProviders();
   }
 
   private initProviders(): void {
-    // Collect which providers are needed
     const needed = new Set<string>();
-    for (const spec of Object.values(this.models)) {
-      const [provider] = spec.split('/');
-      needed.add(provider);
+    for (const uri of Object.values(this.models)) {
+      needed.add(parseModelUri(uri).provider);
     }
-
     for (const name of needed) {
       this.ensureProvider(name);
     }
@@ -52,20 +118,14 @@ export class SandboxModelProvider implements ModelProvider {
   }
 
   async call(config: ModelCallConfig): Promise<ModelResult> {
-    // config.via is a direct provider/model spec (e.g. "openai/gpt-5.4-nano")
-    const modelSpec = config.via ?? Object.values(this.models)[0] ?? 'openai/default';
-
-    const [providerName, ...rest] = modelSpec.split('/');
-    const modelId = rest.join('/');
-    if (!providerName || !modelId) {
-      throw new Error(
-        `Invalid model spec: "${modelSpec}". Expected "provider/model" format.`,
-      );
+    const modelUri = config.via ?? Object.values(this.models)[0];
+    if (!modelUri) {
+      throw new Error('No model configured. Add models to config.yml.');
     }
 
-    // Ensure provider is initialized
-    this.ensureProvider(providerName);
+    const { provider: providerName, modelId, params } = parseModelUri(modelUri);
 
+    this.ensureProvider(providerName);
     const providerFactory = this.providers.get(providerName);
     if (!providerFactory) {
       throw new Error(
@@ -74,6 +134,8 @@ export class SandboxModelProvider implements ModelProvider {
     }
 
     const model = providerFactory(modelId);
+    const providerOptions = buildProviderOptions(providerName, params);
+    const logSpec = `${providerName}/${modelId}`;
 
     // Build system prompt from COIL config
     const systemParts: string[] = [];
@@ -94,7 +156,7 @@ export class SandboxModelProvider implements ModelProvider {
     if (config.resultSchema && config.resultSchema.length > 0) {
       const schema = buildZodSchema(config.resultSchema);
       const fields = config.resultSchema.map(f => f.name).join(', ');
-      console.log(`[model] generateObject → ${modelSpec} | fields: {${fields}} | prompt: ${promptLen} chars`);
+      console.log(`[model] generateObject → ${logSpec} | fields: {${fields}} | prompt: ${promptLen} chars`);
 
       try {
         const result = await generateObject({
@@ -102,6 +164,7 @@ export class SandboxModelProvider implements ModelProvider {
           system,
           prompt,
           schema,
+          ...(providerOptions ? { providerOptions } : {}),
         });
 
         const tokens = result.usage?.totalTokens;
@@ -118,13 +181,14 @@ export class SandboxModelProvider implements ModelProvider {
     }
 
     // Otherwise, plain text generation
-    console.log(`[model] generateText → ${modelSpec} | prompt: ${promptLen} chars`);
+    console.log(`[model] generateText → ${logSpec} | prompt: ${promptLen} chars`);
 
     try {
       const result = await generateText({
         model,
         system,
         prompt,
+        ...(providerOptions ? { providerOptions } : {}),
       });
 
       const tokens = result.usage?.totalTokens;
