@@ -189,16 +189,23 @@ export class Sandbox {
   }
 
   /** Detect @mentions in a message and spawn agent protocols. */
+  private static MAX_CHAIN_DEPTH = 5;
+
   private spawnMentionedProtocols(
     envelope: MessageEnvelope,
     rootPostId?: string,
     rootChannel?: string,
-    allowChainSpawn = true,
+    chainDepth = 0,
   ): void {
     if (!this.app || !this.modelProvider) return;
 
     const text = typeof envelope.body === 'string' ? envelope.body : '';
-    const mentionsFromText = detectMentions(text);
+    let mentionsFromText = detectMentions(text);
+
+    // @all → expand to all agent names
+    if (mentionsFromText.includes('all')) {
+      mentionsFromText = [...this.app.agents.keys()];
+    }
 
     // Also trigger agents listed in `to` (e.g. auto-added via reply-to)
     const mentionsFromTo = (envelope.to ?? [])
@@ -210,6 +217,8 @@ export class Sandbox {
       const agent = this.app.agents.get(mention);
       if (!agent) continue;
 
+      const nextDepth = chainDepth + 1;
+
       const ctx: ProtocolContext = {
         app: this.app,
         channelProvider: this.channelProvider,
@@ -220,8 +229,8 @@ export class Sandbox {
         rootPostId,
         rootChannel,
         onPromptUser: this.promptUser ?? undefined,
-        onAgentMessage: allowChainSpawn
-          ? (env, rpId, rCh) => this.spawnMentionedProtocols(env, rpId, rCh, false)
+        onAgentMessage: nextDepth < Sandbox.MAX_CHAIN_DEPTH
+          ? (env, rpId, rCh) => this.spawnMentionedProtocols(env, rpId, rCh, nextDepth)
           : undefined,
       };
 

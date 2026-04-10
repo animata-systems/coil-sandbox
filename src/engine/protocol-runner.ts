@@ -208,6 +208,18 @@ export async function runProtocol(
       } else if (variableName === 'thread') {
         // Thread: root post + all comments, chronologically
         receiveValue = ctx.channelProvider.getThread(rootPostId, rootChannel);
+      } else if (variableName === 'participants') {
+        // All participants (agents + user), excluding the current agent
+        const list: Array<{ handle: string; description: string }> = [];
+        list.push({ handle: '@user', description: 'Пользователь' });
+        for (const [name, entry] of app.agents) {
+          if (name === agent.name) continue;
+          list.push({
+            handle: `@${name}`,
+            description: entry.config.description ?? '',
+          });
+        }
+        receiveValue = list;
       } else if (variableName in app.config.models) {
         // Model alias → string value from config
         receiveValue = app.config.models[variableName];
