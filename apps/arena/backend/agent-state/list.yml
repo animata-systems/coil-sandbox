@@ -1,11 +1,11 @@
 tools:
   get-state:
-    description: Read agent's persistent state (JSON object). Returns empty object if no state exists.
+    description: Read persistent state (JSON object). Returns empty object if no state exists.
     args:
       agent: { type: string, required: true }
 
   set-state:
-    description: Write agent's persistent state (JSON object). Merges with existing state.
+    description: Write persistent state (JSON object). Merges with existing state.
     args:
       agent: { type: string, required: true }
       data: { type: object, required: true }

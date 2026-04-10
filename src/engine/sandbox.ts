@@ -213,7 +213,11 @@ export class Sandbox {
     const mentionsFromTo = (envelope.to ?? [])
       .map(addr => addr.startsWith('@') ? addr.slice(1) : addr);
 
-    const mentions = [...new Set([...mentionsFromText, ...mentionsFromTo])];
+    const allMentions = [...new Set([...mentionsFromText, ...mentionsFromTo])];
+
+    // Never spawn the sender's own protocol (prevents self-mention loops)
+    const senderName = envelope.from.startsWith('@') ? envelope.from.slice(1) : envelope.from;
+    const mentions = allMentions.filter(name => name !== senderName);
 
     for (const mention of mentions) {
       const agent = this.app.agents.get(mention);
