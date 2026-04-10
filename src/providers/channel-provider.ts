@@ -281,6 +281,31 @@ export class SandboxChannelProvider extends EventEmitter implements ChannelProvi
     return this.correlationMap.get(correlationId);
   }
 
+  /** Get thread: root post + all comments, sorted chronologically. */
+  getThread(rootPostId: string, channel: string): Array<{
+    body: string;
+    from: string;
+    to: string[];
+    channel: string;
+    datetime: string;
+    replyTo: string;
+  }> {
+    const messages = this.channels.get(channel) ?? [];
+    const commentRef = `#${channel}/${rootPostId}`;
+
+    return messages
+      .filter(m => m.id === rootPostId || m.commentOn === commentRef)
+      .sort((a, b) => a.datetime.localeCompare(b.datetime))
+      .map(m => ({
+        body: typeof m.body === 'string' ? m.body : JSON.stringify(m.body),
+        from: m.from,
+        to: m.to,
+        channel: m.channel ?? channel,
+        datetime: m.datetime,
+        replyTo: m.replyTo ?? '',
+      }));
+  }
+
   /** Find a message by id across all channels. */
   findMessageById(id: string): MessageEnvelope | undefined {
     for (const msgs of this.channels.values()) {

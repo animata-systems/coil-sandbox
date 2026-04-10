@@ -85,15 +85,8 @@ export async function runProtocol(
   const dialectTable = await loadDialect(dialectPath);
   const keywords = KeywordIndex.build(dialectTable);
 
-  // Prepend ОПРЕДЕЛИ for model aliases so $fast/$smart etc. are declared.
-  // Executor will see them as string values; ModelProvider resolves alias at call time.
-  const modelPreamble = Object.keys(app.config.models)
-    .map(alias => `ОПРЕДЕЛИ ${alias}\n<<\n${alias}\n>>\nКОНЕЦ\n`)
-    .join('\n');
-  const fullSource = modelPreamble + freshSource;
-
-  const tokens = tokenize(fullSource, keywords);
-  const ast = parse(tokens, dialectTable, fullSource);
+  const tokens = tokenize(freshSource, keywords);
+  const ast = parse(tokens, dialectTable, freshSource);
 
   const validation = validate(ast, dialectTable);
   const errors = validation.diagnostics.filter(d => d.severity === 'error');
@@ -127,24 +120,46 @@ export async function runProtocol(
     onLog(agent.name, `Yield: ${yr.detail.type}`);
 
     if (yr.detail.type === 'receive') {
-      // ПОЛУЧИ → inject triggering message as object
-      const messageObj = {
-        body: typeof triggerMessage.body === 'string'
-          ? triggerMessage.body
-          : JSON.stringify(triggerMessage.body),
-        from: triggerMessage.from,
-        to: triggerMessage.to,
-        channel: triggerMessage.channel ?? '',
-        datetime: triggerMessage.datetime,
-        replyTo: triggerMessage.replyTo ?? '',
-      };
+      const { variableName, prompt } = yr.detail;
+
+      if (prompt !== null) {
+        // Block receive (with body-prompt) — Phase 4
+        onLog(agent.name, `Block ПОЛУЧИ not yet supported: ${variableName}`);
+        break;
+      }
+
+      // Inline receive — route by variableName.
+      // Built-in resources first (host contract), model aliases second (user config).
+      let receiveValue: unknown;
+
+      if (variableName === 'message') {
+        // Trigger envelope as object so $message.body etc. work
+        receiveValue = {
+          body: typeof triggerMessage.body === 'string'
+            ? triggerMessage.body
+            : JSON.stringify(triggerMessage.body),
+          from: triggerMessage.from,
+          to: triggerMessage.to,
+          channel: triggerMessage.channel ?? '',
+          datetime: triggerMessage.datetime,
+          replyTo: triggerMessage.replyTo ?? '',
+        };
+      } else if (variableName === 'thread') {
+        // Thread: root post + all comments, chronologically
+        receiveValue = ctx.channelProvider.getThread(rootPostId, rootChannel);
+      } else if (variableName in app.config.models) {
+        // Model alias → string value from config
+        receiveValue = app.config.models[variableName];
+      } else {
+        onLog(agent.name, `Unknown resource for ПОЛУЧИ: ${variableName}`);
+        break;
+      }
 
       // ReceiveValue.value is typed as string in runtime SDK,
       // but executor does scope.set(name, value) — any type works at runtime.
-      // We pass the object so $message.body etc. are accessible in COIL.
       result = await resume(
         yr.snapshot,
-        { type: 'ReceiveValue', value: messageObj as unknown as string },
+        { type: 'ReceiveValue', value: receiveValue as unknown as string },
         ast,
         providers,
       );

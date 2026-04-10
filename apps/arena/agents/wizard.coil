@@ -4,7 +4,9 @@
 ИНСТРУМЕНТЫ list_agents, load_agent, patch_agent, update_desc, load_skill, list_tools
 
 ПОЛУЧИ message
-КОНЕЦ
+ПОЛУЧИ fast
+ПОЛУЧИ smart
+ПОЛУЧИ coder
 
 ОПРЕДЕЛИ wizard_role
 <<
