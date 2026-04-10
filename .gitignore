@@ -140,3 +140,4 @@ vite.config.ts.timestamp-*
 
 # App storage
 apps/**/storage
+apps/**/db

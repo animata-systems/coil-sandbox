@@ -202,9 +202,11 @@ export class Sandbox {
     const text = typeof envelope.body === 'string' ? envelope.body : '';
     let mentionsFromText = detectMentions(text);
 
-    // @all → expand to all agent names
+    // @all → expand to all non-system agent names
     if (mentionsFromText.includes('all')) {
-      mentionsFromText = [...this.app.agents.keys()];
+      mentionsFromText = [...this.app.agents.entries()]
+        .filter(([, e]) => !e.config.system)
+        .map(([name]) => name);
     }
 
     // Also trigger agents listed in `to` (e.g. auto-added via reply-to)

@@ -31,6 +31,7 @@ async function loadConfig(appPath: string): Promise<AppConfig> {
   const agentsRaw = (parsed.agents ?? {}) as Record<string, {
     description?: string;
     tools?: Record<string, string>;
+    system?: boolean;
   }>;
 
   const agents: AppConfig['agents'] = {};
@@ -38,6 +39,7 @@ async function loadConfig(appPath: string): Promise<AppConfig> {
     agents[name] = {
       ...(cfg.description ? { description: cfg.description } : {}),
       tools: cfg.tools ?? {},
+      ...(cfg.system ? { system: true } : {}),
     };
   }
 

@@ -209,11 +209,12 @@ export async function runProtocol(
         // Thread: root post + all comments, chronologically
         receiveValue = ctx.channelProvider.getThread(rootPostId, rootChannel);
       } else if (variableName === 'participants') {
-        // All participants (agents + user), excluding the current agent
+        // All participants (agents + user), excluding the current agent and system agents
         const list: Array<{ handle: string; description: string }> = [];
         list.push({ handle: '@user', description: 'Пользователь' });
         for (const [name, entry] of app.agents) {
           if (name === agent.name) continue;
+          if (entry.config.system) continue;
           list.push({
             handle: `@${name}`,
             description: entry.config.description ?? '',

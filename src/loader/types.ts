@@ -8,6 +8,7 @@ export interface AppConfig {
 export interface AgentConfig {
   description?: string;                     // human-readable agent description
   tools: Record<string, string>;            // abstract name → package/tool
+  system?: boolean;                         // system agent — excluded from @all and participants
 }
 
 export interface ToolMeta {
