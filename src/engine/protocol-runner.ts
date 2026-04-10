@@ -54,6 +54,8 @@ export interface ProtocolContext {
    * Returns the user's answer (string).
    */
   onPromptUser?: (agentName: string, prompt: string) => Promise<string>;
+  /** Called after an agent posts a message — allows Sandbox to detect mentions and spawn protocols. */
+  onAgentMessage?: (envelope: MessageEnvelope, rootPostId: string, rootChannel: string) => void;
 }
 
 export async function runProtocol(
@@ -311,6 +313,9 @@ function createAgentChannelProxy(
     // Post to main channel provider for visibility + persistence.
     // Await ensures message is persisted before triggering downstream protocols.
     await ctx.channelProvider.post(envelope);
+
+    // Detect @mentions in agent's message and spawn new protocols
+    ctx.onAgentMessage?.(envelope, rootPostId, rootChannel);
 
     // Register correlation so ЖДАТЬ can match replies by message id
     return { correlationId: msgId };

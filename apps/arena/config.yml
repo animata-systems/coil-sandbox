@@ -4,7 +4,7 @@ models:
   coder: llm://openai/gpt-5.4?reasoning=high
 agents:
   wizard:
-    description: Агент для запроса имени собеседника и последующего приветствия по имени
+    description: Мета-агент для создания, изменения и объяснения других агентов на языке COIL
     tools:
       list_agents: system/list-agents
       load_agent: system/load-agent

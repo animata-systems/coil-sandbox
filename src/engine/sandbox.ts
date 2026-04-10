@@ -162,11 +162,21 @@ export class Sandbox {
       throw new Error('No app loaded');
     }
 
+    // If replying to a specific message, auto-add its author to `to`
+    // so agent protocols are triggered
+    const to: string[] = [];
+    if (replyTo) {
+      const original = this.channelProvider.findMessageById(replyTo);
+      if (original?.from) {
+        to.push(original.from);
+      }
+    }
+
     const envelope: MessageEnvelope = {
       id: shortId(),
       channel,
       from: '@user',
-      to: [],
+      to,
       body: text,
       datetime: new Date().toISOString(),
       commentOn: `#${channel}/${commentOnPostId}`,
@@ -183,11 +193,18 @@ export class Sandbox {
     envelope: MessageEnvelope,
     rootPostId?: string,
     rootChannel?: string,
+    allowChainSpawn = true,
   ): void {
     if (!this.app || !this.modelProvider) return;
 
     const text = typeof envelope.body === 'string' ? envelope.body : '';
-    const mentions = detectMentions(text);
+    const mentionsFromText = detectMentions(text);
+
+    // Also trigger agents listed in `to` (e.g. auto-added via reply-to)
+    const mentionsFromTo = (envelope.to ?? [])
+      .map(addr => addr.startsWith('@') ? addr.slice(1) : addr);
+
+    const mentions = [...new Set([...mentionsFromText, ...mentionsFromTo])];
 
     for (const mention of mentions) {
       const agent = this.app.agents.get(mention);
@@ -203,6 +220,9 @@ export class Sandbox {
         rootPostId,
         rootChannel,
         onPromptUser: this.promptUser ?? undefined,
+        onAgentMessage: allowChainSpawn
+          ? (env, rpId, rCh) => this.spawnMentionedProtocols(env, rpId, rCh, false)
+          : undefined,
       };
 
       runProtocol(agent, envelope, ctx).catch(err => {
