@@ -1,3 +1,4 @@
+' @dialect ru-standard
 ' Волшебник: мета-агент, читает и изменяет код других агентов на языке COIL
 
 ИНСТРУМЕНТЫ list_agents, load_agent, patch_agent, update_desc, load_skill, list_tools

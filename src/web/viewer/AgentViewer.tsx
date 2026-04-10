@@ -9,8 +9,8 @@
  * Parsing is done once per (source, dialect) — we don't need `PipelineProvider`
  * because there is no editing, validation, or debounce cycle here.
  *
- * Dialect is fixed to `DEFAULT_DIALECT` in the first iteration; auto-detect by
- * content is a deferred follow-up (see `parseWithFallback` comment below).
+ * Dialect is determined by `' @dialect <name>` annotation in the source.
+ * If no annotation is present, DEFAULT_DIALECT (en-standard) is used.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -28,6 +28,8 @@ import {
   type CoilHRow,
   type DialectTable,
 } from 'coil-ide';
+
+import { detectDialect } from '../../utils/detect-dialect.js';
 
 /**
  * Minimal shape of the Socket.IO client we need. We don't depend on
@@ -54,11 +56,9 @@ type ViewMode = 'coil-c' | 'coil-h';
 interface ParsedView {
   rows: CoilHRow[];
   parseError: string | null;
-  /** The dialect that actually produced `rows`. Differs from DEFAULT_DIALECT
-   *  when cascade fallback kicked in (see `parseWithFallback`). */
+  /** The dialect that produced `rows`. Determined by @dialect annotation or DEFAULT_DIALECT. */
   resolvedDialect: DialectTable | null;
-  /** Dialect key name for the resolved dialect (e.g. 'ru-standard'). Used to
-   *  pick the right Monaco language for syntax highlighting in COIL-C view. */
+  /** Dialect key name (e.g. 'ru-standard'). Used to pick the right Monaco language. */
   resolvedDialectName: string | null;
 }
 
@@ -80,62 +80,10 @@ function parseOnce(
   }
 }
 
-/**
- * Try `preferred` first; if parsing fails, cascade through the remaining
- * dialects in `dialectRegistry` and return the first one that succeeds.
- *
- * This is intentionally NOT content-aware auto-detection — that is a deferred
- * follow-up. It is graceful degradation: in the arena sandbox
- * all shipped examples are `ru-standard` but `DEFAULT_DIALECT` is
- * `en-standard`, so without a fallback the COIL-H table view always shows
- * a parse error. Cascade try fixes this without pretending to know which
- * dialect an agent is really in — if parsing works, that's the dialect we
- * render with. If nothing works, we surface the error from the preferred
- * dialect, which is the one the user would expect.
- */
-function parseWithFallback(
-  source: string,
-  preferredName: string,
-  preferred: DialectTable,
-): ParsedView {
-  const primary = parseOnce(source, preferred);
-  if (primary.error === null) {
-    return {
-      rows: primary.rows,
-      parseError: null,
-      resolvedDialect: preferred,
-      resolvedDialectName: preferredName,
-    };
-  }
-  for (const [name, table] of dialectRegistry) {
-    if (table === preferred) continue;
-    const attempt = parseOnce(source, table);
-    if (attempt.error === null) {
-      return {
-        rows: attempt.rows,
-        parseError: null,
-        resolvedDialect: table,
-        resolvedDialectName: name,
-      };
-    }
-  }
-  return {
-    rows: [],
-    parseError: primary.error,
-    resolvedDialect: null,
-    resolvedDialectName: null,
-  };
-}
-
 export function AgentViewer({ agentName, socket, onClose }: AgentViewerProps) {
   const [source, setSource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('coil-c');
-  const dialectName = DEFAULT_DIALECT;
-  const dialectTable = useMemo(
-    () => dialectRegistry.get(dialectName),
-    [dialectName],
-  );
 
   // Fetch source on mount and whenever the agent name changes.
   useEffect(() => {
@@ -168,6 +116,8 @@ export function AgentViewer({ agentName, socket, onClose }: AgentViewerProps) {
         resolvedDialectName: null,
       };
     }
+    const dialectName = detectDialect(source) ?? DEFAULT_DIALECT;
+    const dialectTable = dialectRegistry.get(dialectName);
     if (!dialectTable) {
       return {
         rows: [],
@@ -176,8 +126,14 @@ export function AgentViewer({ agentName, socket, onClose }: AgentViewerProps) {
         resolvedDialectName: null,
       };
     }
-    return parseWithFallback(source, dialectName, dialectTable);
-  }, [source, dialectTable, dialectName]);
+    const result = parseOnce(source, dialectTable);
+    return {
+      rows: result.rows,
+      parseError: result.error,
+      resolvedDialect: dialectTable,
+      resolvedDialectName: dialectName,
+    };
+  }, [source]);
 
   return (
     <div
@@ -248,7 +204,7 @@ export function AgentViewer({ agentName, socket, onClose }: AgentViewerProps) {
               <EditorView
                 value={source}
                 readOnly
-                dialect={parsed.resolvedDialectName ?? dialectName}
+                dialect={parsed.resolvedDialectName ?? DEFAULT_DIALECT}
                 theme="dark"
               />
             </div>
@@ -256,7 +212,7 @@ export function AgentViewer({ agentName, socket, onClose }: AgentViewerProps) {
             <div className="h-full overflow-auto">
               {parsed.parseError !== null || !parsed.resolvedDialect ? (
                 <div className="p-4 text-sm text-destructive">
-                  Parse error: {parsed.parseError ?? `unknown dialect: ${dialectName}`}
+                  Parse error: {parsed.parseError ?? 'unknown dialect'}
                 </div>
               ) : (
                 <CoilHTable

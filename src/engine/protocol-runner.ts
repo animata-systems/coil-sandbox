@@ -11,7 +11,8 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { createRequire } from 'node:module';
 
 import {
   tokenize,
@@ -31,6 +32,7 @@ import type {
 } from 'coil-runtime/sdk';
 
 import type { LoadedApp, AgentEntry } from '../loader/types.js';
+import { detectDialect } from '../utils/detect-dialect.js';
 import { SandboxModelProvider } from '../providers/model-provider.js';
 import { SandboxToolProvider } from '../providers/tool-provider.js';
 import { SandboxChannelProvider, shortId, type MessageEnvelope } from '../providers/channel-provider.js';
@@ -63,9 +65,6 @@ export async function runProtocol(
 
   // -- Parse & validate ----------------------------------------
 
-  const dialectTable = await loadDialect(ctx.dialectPath);
-  const keywords = KeywordIndex.build(dialectTable);
-
   // Hot-reload: re-read .coil source from disk so changes take effect immediately
   let freshSource: string;
   try {
@@ -77,6 +76,14 @@ export async function runProtocol(
   } catch {
     freshSource = agent.source;
   }
+
+  // Determine dialect: @dialect annotation in source takes priority, otherwise default
+  const detectedName = detectDialect(freshSource);
+  const dialectPath = detectedName
+    ? resolveDialectPath(detectedName)
+    : ctx.dialectPath;
+  const dialectTable = await loadDialect(dialectPath);
+  const keywords = KeywordIndex.build(dialectTable);
 
   // Prepend ОПРЕДЕЛИ for model aliases so $fast/$smart etc. are declared.
   // Executor will see them as string values; ModelProvider resolves alias at call time.
@@ -323,6 +330,15 @@ async function handleAwaitReplies(
       }
     },
   );
+}
+
+// ── Dialect resolution ─────────────────────────────────────
+
+const _require = createRequire(import.meta.url);
+
+function resolveDialectPath(name: string): string {
+  const coilPkg = dirname(_require.resolve('coil/package.json'));
+  return join(coilPkg, 'dialects', name, `${name}.json`);
 }
 
 // ── Mention detection ───────────────────────────────────────

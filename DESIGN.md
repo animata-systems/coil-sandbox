@@ -149,3 +149,44 @@ define: {
 - **Бандл жёстко зафиксирован в `production`-режиме.** React DevTools в нём работают ограниченно, dev-предупреждения React не видны, `act()` warnings не появляются. Для read-only viewer'а это приемлемо: весь код сводится к fetch source → parse → render, интерактивной логики, которую стоило бы отлаживать с DevTools, нет.
 - **Ловушка повторится при любой новой библиотечной сборке.** Если в будущем появится второй Vite library-mode бандл в sandbox или в другом подмодуле, где React/Redux/другие зависимости используют `process.env.NODE_ENV`-guard'ы, — его придётся собирать с тем же `define`. Mitigation: эта запись фиксирует паттерн в журнале, чтобы при следующем случае он нашёлся поиском.
 - **Связанность с Vite-версией.** Если поведение Vite library-mode изменится (например, в v9 по умолчанию начнёт делать substitution), `define` окажется дубликатом. Безвредным, но лишним. Не блокер — при апгрейде Vite стоит проверить.
+
+---
+
+## S-0004 — Dialect определяется по аннотации `@dialect`, default — `en-standard`
+
+| | |
+|---|---|
+| **Статус** | принят |
+| **Решено** | 2026-04-10 |
+| **Scope** | `src/utils/detect-dialect.ts`, `src/engine/protocol-runner.ts`, `src/web/viewer/AgentViewer.tsx`, `cli/index.ts` |
+| **Связан с** | S-0001, R-0002 в `coil-runtime/DESIGN.md` |
+
+**Контекст.** До этого решения sandbox определял диалект одним способом: CLI-флаг `--dialect <path>` или default (`ru-standard`). Viewer (S-0001) использовал cascade-try — пытался парсить исходник всеми доступными диалектами из `dialectRegistry` и брал первый, который не вернул ошибку. Это приводило к двум проблемам: (1) при полном провале cascade возвращал ошибку от primary-диалекта (`en-standard`), даже если другой диалект продвинулся дальше — пользователь видел нерелевантную ошибку; (2) default `ru-standard` в CLI означал, что `en-standard`-файлы без явного `--dialect` не парсились.
+
+Рассматривались два варианта:
+- **A.** Content-aware auto-detection по первым ключевым словам (распознать `ПОЛУЧИ` vs `RECEIVE`). Требует поддержки всех диалектов, хрупко при пересечении ключевых слов между диалектами.
+- **B.** Явная аннотация `' @dialect <name>` в заголовке .coil файла. Формат уже используется в `coil/tests/` и `coil/examples/` для тестовой инфраструктуры (`suite.test.ts`, R-0030).
+
+**Решение.** Вариант B.
+
+Утилита `detectDialect(source: string): string | null` сканирует ведущие строки-комментарии (`'`) на паттерн `' @dialect <name>`. Возвращает имя диалекта или `null`. Останавливается на первой непустой, не-комментарной строке.
+
+Три точки интеграции:
+
+1. **protocol-runner** (`src/engine/protocol-runner.ts`): перед `tokenize` вызывает `detectDialect(freshSource)`. Если найден — резолвит путь к JSON через `resolveDialectPath(name)` → `loadDialect(path)`. Если не найден — использует `ctx.dialectPath` (default из CLI).
+
+2. **viewer** (`src/web/viewer/AgentViewer.tsx`): `detectDialect(source)` → имя найдено → `dialectRegistry.get(name)`. Не найдено → `dialectRegistry.get(DEFAULT_DIALECT)`. Один вызов `parseOnce`. Cascade-try (`parseWithFallback`) удалён.
+
+3. **CLI default** (`cli/index.ts`): `resolveDefaultDialect()` возвращает `en-standard` вместо `ru-standard`.
+
+Файлы `.coil` с русским диалектом (`wizard.coil`, `echo.coil`) получают аннотацию `' @dialect ru-standard` первой строкой.
+
+**Почему.**
+- Аннотация — уже существующая конвенция (`coil/tests/README.md`, R-0030 в `coil-runtime/DESIGN.md`). Не вводит новый формат.
+- Определение диалекта — детерминированное и дешёвое (regex по первым строкам, без парсинга).
+- `en-standard` как default согласуется с `DEFAULT_DIALECT` в `coil-ide` и с тем, что COIL — открытый проект с английским как базовым диалектом.
+- Cascade-try удалён — пользователь видит ошибку от правильного диалекта, а не от первого попавшегося.
+
+**Цена.**
+- **Каждый `.coil` файл с не-`en-standard` диалектом обязан иметь аннотацию.** Без неё — парсится как `en-standard` и падает. Mitigation: все текущие файлы arena аннотированы. Будущие файлы — ответственность автора.
+- **`modelPreamble` в protocol-runner жёстко использует `ОПРЕДЕЛИ` (русский keyword).** При `en-standard`-диалекте без `@dialect` преамбула не распознается. Это закрывается фазой 3 (удаление преамбулы в пользу inline ПОЛУЧИ).

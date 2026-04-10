@@ -48,7 +48,7 @@ async function main() {
     process.exit(1);
   }
 
-  // Default dialect: Russian standard from coil-runtime's coil dependency
+  // Default dialect: English standard from coil-runtime's coil dependency
   const resolvedDialect = dialectPath
     ?? resolveDefaultDialect();
 
@@ -66,7 +66,7 @@ async function main() {
 
 function resolveDefaultDialect(): string {
   const coilPkg = dirname(require.resolve('coil/package.json'));
-  return resolve(coilPkg, 'dialects/ru-standard/ru-standard.json');
+  return resolve(coilPkg, 'dialects/en-standard/en-standard.json');
 }
 
 main().catch(err => {
