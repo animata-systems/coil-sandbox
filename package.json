@@ -18,7 +18,7 @@
     "@ai-sdk/anthropic": "^2.0.0",
     "@ai-sdk/openai": "^2.0.0",
     "ai": "^6.0.157",
-    "coil": "github:animata-systems/coil#v0.4.0",
+    "coil": "github:animata-systems/coil",
     "coil-runtime": "github:animata-systems/coil-runtime",
     "express": "^5.1.0",
     "socket.io": "^4.8.0",

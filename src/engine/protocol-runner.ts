@@ -56,8 +56,13 @@ export interface ProtocolContext {
    * Returns the user's answer (string).
    */
   onPromptUser?: (agentName: string, prompt: string) => Promise<string>;
-  /** Called after an agent posts a message — allows Sandbox to detect mentions and spawn protocols. */
-  onAgentMessage?: (envelope: MessageEnvelope, rootPostId: string, rootChannel: string) => void;
+  /**
+   * Called after an agent posts a message — allows Sandbox to detect mentions and spawn protocols.
+   * @param toFromAST — explicit target names from COIL AST (SEND FOR clause).
+   *   Defined (even empty) = COIL-generated message, use AST targets only.
+   *   Undefined = non-COIL message, fall back to regex mention detection.
+   */
+  onAgentMessage?: (envelope: MessageEnvelope, rootPostId: string, rootChannel: string, toFromAST?: string[]) => void;
 }
 
 export async function runProtocol(
@@ -347,8 +352,10 @@ function createAgentChannelProxy(
     // Await ensures message is persisted before triggering downstream protocols.
     await ctx.channelProvider.post(envelope);
 
-    // Detect @mentions in agent's message and spawn new protocols
-    ctx.onAgentMessage?.(envelope, rootPostId, rootChannel);
+    // Detect @mentions in agent's message and spawn new protocols.
+    // Pass AST-derived target list so sandbox skips regex on COIL prose.
+    const toFromAST = participantIds.map(id => id.startsWith('@') ? id.slice(1) : id);
+    ctx.onAgentMessage?.(envelope, rootPostId, rootChannel, toFromAST);
 
     // Register correlation so ЖДАТЬ can match replies by message id
     return { correlationId: msgId };
@@ -483,12 +490,16 @@ function resolveDialectPath(name: string): string {
 
 // ── Mention detection ───────────────────────────────────────
 
-const MENTION_RE = /@(\w+)/g;
-
+/**
+ * Regex-based mention detection for non-COIL messages (user input).
+ * For COIL-generated messages, targets come from the AST (SEND FOR clause)
+ * and this function is NOT used — see toFromAST parameter on onAgentMessage.
+ */
 export function detectMentions(text: string): string[] {
+  const re = /@(\w+)/g;
   const mentions: string[] = [];
   let match;
-  while ((match = MENTION_RE.exec(text)) !== null) {
+  while ((match = re.exec(text)) !== null) {
     mentions.push(match[1]);
   }
   return mentions;

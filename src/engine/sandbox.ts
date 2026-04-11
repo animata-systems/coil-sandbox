@@ -196,24 +196,33 @@ export class Sandbox {
     rootPostId?: string,
     rootChannel?: string,
     chainDepth = 0,
+    toFromAST?: string[],
   ): void {
     if (!this.app || !this.modelProvider) return;
 
-    const text = typeof envelope.body === 'string' ? envelope.body : '';
-    let mentionsFromText = detectMentions(text);
+    let allMentions: string[];
 
-    // @all → expand to all non-system agent names
-    if (mentionsFromText.includes('all')) {
-      mentionsFromText = [...this.app.agents.entries()]
-        .filter(([, e]) => !e.config.system)
-        .map(([name]) => name);
+    if (toFromAST !== undefined) {
+      // COIL-generated message: use AST-derived targets only (no regex on prose)
+      allMentions = toFromAST;
+    } else {
+      // User/non-COIL message: detect mentions via regex
+      const text = typeof envelope.body === 'string' ? envelope.body : '';
+      let mentionsFromText = detectMentions(text);
+
+      // @all → expand to all non-system agent names
+      if (mentionsFromText.includes('all')) {
+        mentionsFromText = [...this.app.agents.entries()]
+          .filter(([, e]) => !e.config.system)
+          .map(([name]) => name);
+      }
+
+      // Also trigger agents listed in `to` (e.g. auto-added via reply-to)
+      const mentionsFromTo = (envelope.to ?? [])
+        .map(addr => addr.startsWith('@') ? addr.slice(1) : addr);
+
+      allMentions = [...new Set([...mentionsFromText, ...mentionsFromTo])];
     }
-
-    // Also trigger agents listed in `to` (e.g. auto-added via reply-to)
-    const mentionsFromTo = (envelope.to ?? [])
-      .map(addr => addr.startsWith('@') ? addr.slice(1) : addr);
-
-    const allMentions = [...new Set([...mentionsFromText, ...mentionsFromTo])];
 
     // Never spawn the sender's own protocol (prevents self-mention loops)
     const senderName = envelope.from.startsWith('@') ? envelope.from.slice(1) : envelope.from;
@@ -236,7 +245,7 @@ export class Sandbox {
         rootChannel,
         onPromptUser: this.promptUser ?? undefined,
         onAgentMessage: nextDepth < Sandbox.MAX_CHAIN_DEPTH
-          ? (env, rpId, rCh) => this.spawnMentionedProtocols(env, rpId, rCh, nextDepth)
+          ? (env, rpId, rCh, astTo) => this.spawnMentionedProtocols(env, rpId, rCh, nextDepth, astTo)
           : undefined,
       };
 
