@@ -15,8 +15,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.0",
-    "@ai-sdk/openai": "^2.0.0",
+    "@ai-sdk/anthropic": "^3.0.69",
+    "@ai-sdk/openai": "^3.0.52",
     "ai": "^6.0.157",
     "coil": "github:animata-systems/coil",
     "coil-runtime": "github:animata-systems/coil-runtime",

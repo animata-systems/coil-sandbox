@@ -76,7 +76,7 @@ export function createSystemTools(ctx: SystemToolContext): Map<string, ToolEntry
       args: {
         name: { type: 'string', required: true },
         source: { type: 'string', required: true },
-        tools: { type: 'object', required: false },
+        tools: { type: 'array', required: false },
       },
     },
     handler: async (args) => {
@@ -85,7 +85,11 @@ export function createSystemTools(ctx: SystemToolContext): Map<string, ToolEntry
         return `[error] Agent "${name}" is a system agent and cannot be modified`;
       }
       const source = args.source as string;
-      const toolsMapping = (args.tools ?? {}) as Record<string, string>;
+      const toolsResult = normalizeToolsMapping(args.tools);
+      if ('error' in toolsResult) {
+        return `[error] ${toolsResult.error}`;
+      }
+      const toolsMapping = toolsResult.mapping;
       const filePath = join(ctx.app.path, 'agents', `${name}.coil`);
 
       await mkdir(join(ctx.app.path, 'agents'), { recursive: true });
@@ -202,6 +206,47 @@ export function createSystemTools(ctx: SystemToolContext): Map<string, ToolEntry
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+
+/**
+ * Normalize the `tools` argument of patch-agent into a Record<name, path>
+ * for storage in config.yml.
+ *
+ * The contract is strict: tools is either omitted or a list of
+ * `{ name, path }` objects. A COIL `РЕЗУЛЬТАТ` cannot express an object
+ * with dynamic keys (ОБЪЕКТ requires fields declared up-front), so the
+ * list form is the canonical shape. Any other shape — string, plain
+ * object, scalar — is a structured-output failure and is surfaced as
+ * an explicit error instead of silently mangling the config.
+ */
+function normalizeToolsMapping(
+  raw: unknown,
+): { mapping: Record<string, string> } | { error: string } {
+  if (raw == null) {
+    return { mapping: {} };
+  }
+  if (!Array.isArray(raw)) {
+    return { error: 'tools must be a list of {name, path} objects (or omitted)' };
+  }
+  const mapping: Record<string, string> = {};
+  for (let i = 0; i < raw.length; i++) {
+    const item = raw[i];
+    if (!item || typeof item !== 'object') {
+      return { error: `tools[${i}] must be an object with "name" and "path"` };
+    }
+    const { name, path } = item as { name?: unknown; path?: unknown };
+    if (typeof name !== 'string' || !name) {
+      return { error: `tools[${i}].name must be a non-empty string` };
+    }
+    if (typeof path !== 'string' || !path) {
+      return { error: `tools[${i}].path must be a non-empty string` };
+    }
+    if (name in mapping) {
+      return { error: `tools[${i}].name "${name}" duplicates earlier entry` };
+    }
+    mapping[name] = path;
+  }
+  return { mapping };
+}
 
 async function updateConfigOnDisk(
   appPath: string,

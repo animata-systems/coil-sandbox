@@ -302,6 +302,7 @@ function argMetaToZod(args: Record<string, ArgMeta>): z.ZodObject<Record<string,
       case 'number':  t = z.number(); break;
       case 'boolean': t = z.boolean(); break;
       case 'object':  t = z.record(z.string(), z.unknown()); break;
+      case 'array':   t = z.array(z.unknown()); break;
       default:        t = z.string(); break;
     }
     shape[name] = arg.required ? t : t.optional();

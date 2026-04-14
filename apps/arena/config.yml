@@ -5,7 +5,8 @@ models:
 agents:
   wizard:
     system: true
-    description: Мета-агент для создания, изменения и объяснения других агентов на языке COIL
+    description: Мета-агент для создания, изменения и объяснения других агентов на
+      языке COIL
     tools:
       list_agents: system/list-agents
       load_agent: system/load-agent
@@ -13,3 +14,14 @@ agents:
       update_desc: system/update-agent-desc
       load_skill: system/load-skill
       list_tools: system/list-tools
+  zombie:
+    tools:
+      read_state: agent-state/get-state
+      save_state: agent-state/set-state
+    description: Дружелюбный зомби-собеседник с персистентным состоянием голода,
+      сонливости и настроения.
+  troll:
+    tools:
+      read_state: agent-state/get-state
+      save_state: agent-state/set-state
+    description: Русскоязычный лёгкий тролль с персистентным настроением mood.
