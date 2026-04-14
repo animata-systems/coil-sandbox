@@ -183,7 +183,7 @@ CONTEXT
 ДУМАЙ result
   ЧЕРЕЗ $coder
   КАК $wizard_role
-  ЦЕЛЬ <<
+  ЦЕЛЬ <<'TASK'
   Выполни задачу над агентом.
   Если action = modify или create:
     - Напиши ПОЛНЫЙ код агента на языке COIL (весь файл целиком)
@@ -197,7 +197,7 @@ CONTEXT
   Если action = explain:
     - Объясни, как работает агент
     - В поле source поставь пустую строку
-  >>
+  TASK
   ВХОД <<
   Действие: $plan.action
   Агент: $plan.target
