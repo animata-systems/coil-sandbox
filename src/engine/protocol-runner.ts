@@ -58,11 +58,10 @@ export interface ProtocolContext {
   onPromptUser?: (agentName: string, prompt: string) => Promise<string>;
   /**
    * Called after an agent posts a message — allows Sandbox to detect mentions and spawn protocols.
-   * @param toFromAST — explicit target names from COIL AST (SEND FOR clause).
-   *   Defined (even empty) = COIL-generated message, use AST targets only.
-   *   Undefined = non-COIL message, fall back to regex mention detection.
+   * Mention detection policy is unified across message sources: the sandbox applies
+   * prose-mention detection to the body and unions the result with `envelope.to`.
    */
-  onAgentMessage?: (envelope: MessageEnvelope, rootPostId: string, rootChannel: string, toFromAST?: string[]) => void;
+  onAgentMessage?: (envelope: MessageEnvelope, rootPostId: string, rootChannel: string) => void;
 }
 
 export async function runProtocol(
@@ -352,10 +351,9 @@ function createAgentChannelProxy(
     // Await ensures message is persisted before triggering downstream protocols.
     await ctx.channelProvider.post(envelope);
 
-    // Detect @mentions in agent's message and spawn new protocols.
-    // Pass AST-derived target list so sandbox skips regex on COIL prose.
-    const toFromAST = participantIds.map(id => id.startsWith('@') ? id.slice(1) : id);
-    ctx.onAgentMessage?.(envelope, rootPostId, rootChannel, toFromAST);
+    // Detect mentions in agent's message and spawn new protocols.
+    // Sandbox applies the same policy as for user messages: prose-mentions ∪ envelope.to.
+    ctx.onAgentMessage?.(envelope, rootPostId, rootChannel);
 
     // Register correlation so ЖДАТЬ can match replies by message id
     return { correlationId: msgId };
@@ -488,18 +486,108 @@ function resolveDialectPath(name: string): string {
   return join(coilPkg, 'dialects', name, `${name}.json`);
 }
 
-// ── Mention detection ───────────────────────────────────────
+// ── Prose-mention detection ─────────────────────────────────
+
+const FENCE_OPEN = /^\s*```[^`\n]*$/;
+const FENCE_CLOSE = /^\s*```\s*$/;
+const MENTION_RE = /(?:^|(?<=[^\p{L}\p{N}_]))@(\p{L}[\p{L}\p{N}_]*)(?=$|[^\p{L}\p{N}_])/gu;
 
 /**
- * Regex-based mention detection for non-COIL messages (user input).
- * For COIL-generated messages, targets come from the AST (SEND FOR clause)
- * and this function is NOT used — see toFromAST parameter on onAgentMessage.
+ * Find matching fenced code-block ranges (openIdx..closeIdx, exclusive boundaries).
+ * Only fences that have a matching closing line count; unclosed fences are ignored
+ * and their contents are processed as regular prose per spec §9.4a.
  */
-export function detectMentions(text: string): string[] {
-  const re = /@(\w+)/g;
+function findFenceRanges(lines: string[]): Array<{ openIdx: number; closeIdx: number }> {
+  const ranges: Array<{ openIdx: number; closeIdx: number }> = [];
+  let openIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (openIdx === -1) {
+      if (FENCE_OPEN.test(lines[i])) openIdx = i;
+    } else {
+      if (FENCE_CLOSE.test(lines[i])) {
+        ranges.push({ openIdx, closeIdx: i });
+        openIdx = -1;
+      }
+    }
+  }
+  return ranges;
+}
+
+/**
+ * Mask inline code-spans on a single line.
+ * Pairs runs of 1 or 2 backticks of equal length; content between a matched
+ * open/close pair is replaced with spaces. Unmatched runs are treated as literal.
+ */
+function maskInlineCodeInLine(line: string): string {
+  const chars = line.split('');
+  const runs: Array<{ start: number; length: number }> = [];
+  let i = 0;
+  while (i < chars.length) {
+    if (chars[i] === '`') {
+      let len = 0;
+      while (i + len < chars.length && chars[i + len] === '`') len++;
+      if (len === 1 || len === 2) runs.push({ start: i, length: len });
+      i += len;
+    } else {
+      i++;
+    }
+  }
+  const used = new Set<number>();
+  for (let r = 0; r < runs.length; r++) {
+    if (used.has(r)) continue;
+    const open = runs[r];
+    for (let s = r + 1; s < runs.length; s++) {
+      if (used.has(s)) continue;
+      if (runs[s].length === open.length) {
+        for (let k = open.start + open.length; k < runs[s].start; k++) {
+          chars[k] = ' ';
+        }
+        used.add(r);
+        used.add(s);
+        break;
+      }
+    }
+  }
+  return chars.join('');
+}
+
+/**
+ * Replace characters inside fenced and inline code-spans with spaces,
+ * preserving overall text shape so subsequent regex finds the right tokens.
+ * Unclosed fences and unclosed inline backticks are treated as literal —
+ * code-span does not open.
+ */
+function maskCodeSpans(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const fences = findFenceRanges(lines);
+  const out = lines.map((line, i) => {
+    const inFence = fences.some(f => i > f.openIdx && i < f.closeIdx);
+    if (inFence) return ' '.repeat(line.length);
+    const isFenceBoundary = fences.some(f => i === f.openIdx || i === f.closeIdx);
+    if (isFenceBoundary) return line;
+    return maskInlineCodeInLine(line);
+  });
+  return out.join('\n');
+}
+
+/**
+ * Detect prose-mentions in a message body, per spec §9.4a.
+ *
+ * A prose-mention is `@identifier` in content, where identifier is a Unicode
+ * letter-led identifier (§1.2). Mentions inside inline code-spans (` `…` `,
+ * `` ``…`` ``) and fenced code-blocks (``` ```…``` ```) are suppressed.
+ * Boundaries before/after the token must be start/end of text, whitespace,
+ * or punctuation — so `user@host.com` and dynamic forms like `@$obj.field`
+ * are not recognized.
+ *
+ * Returns names in the order of occurrence. Deduplication and @all-expansion
+ * are applied upstream, in `Sandbox.spawnMentionedProtocols`.
+ */
+export function detectProseMentions(text: string): string[] {
+  if (!text) return [];
+  const masked = maskCodeSpans(text);
   const mentions: string[] = [];
-  let match;
-  while ((match = re.exec(text)) !== null) {
+  for (const match of masked.matchAll(MENTION_RE)) {
     mentions.push(match[1]);
   }
   return mentions;

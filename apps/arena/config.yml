@@ -24,4 +24,5 @@ agents:
     tools:
       read_state: agent-state/get-state
       save_state: agent-state/set-state
-    description: Русскоязычный лёгкий тролль с персистентным настроением mood.
+    description: Агент troll с учётом списка участников чата при выборе мягкой цели
+      для подкола и обновлении mood.

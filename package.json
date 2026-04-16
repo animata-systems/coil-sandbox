@@ -12,6 +12,7 @@
     "build:viewer": "vite build --config src/web/vite.viewer.config.ts",
     "dev": "tsx watch cli/index.ts apps/arena",
     "start": "node dist/cli/index.js apps/arena",
+    "test": "node --import tsx --test src/engine/detect-prose-mentions.test.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {

@@ -11,7 +11,7 @@ import { loadApp } from '../loader/index.js';
 import { SandboxModelProvider } from '../providers/model-provider.js';
 import { SandboxChannelProvider, shortId, type MessageEnvelope } from '../providers/channel-provider.js';
 import { SandboxParticipantProvider } from '../providers/participant-provider.js';
-import { runProtocol, detectMentions, type ProtocolContext } from './protocol-runner.js';
+import { runProtocol, detectProseMentions, type ProtocolContext } from './protocol-runner.js';
 import { createSystemTools } from '../system-tools/index.js';
 
 export class Sandbox {
@@ -188,43 +188,37 @@ export class Sandbox {
     this.spawnMentionedProtocols(envelope, commentOnPostId, channel);
   }
 
-  /** Detect @mentions in a message and spawn agent protocols. */
   private static MAX_CHAIN_DEPTH = 5;
 
+  /** Detect mentions in a message and spawn agent protocols. */
   private spawnMentionedProtocols(
     envelope: MessageEnvelope,
     rootPostId?: string,
     rootChannel?: string,
     chainDepth = 0,
-    toFromAST?: string[],
   ): void {
     if (!this.app || !this.modelProvider) return;
 
-    let allMentions: string[];
+    // Unified detection policy (spec §9.4): prose-mentions in body ∪ envelope.to.
+    // Applies identically to user- and agent-sourced messages.
+    const body = typeof envelope.body === 'string' ? envelope.body : '';
+    let mentionsFromText = detectProseMentions(body);
 
-    if (toFromAST !== undefined) {
-      // COIL-generated message: use AST-derived targets only (no regex on prose)
-      allMentions = toFromAST;
-    } else {
-      // User/non-COIL message: detect mentions via regex
-      const text = typeof envelope.body === 'string' ? envelope.body : '';
-      let mentionsFromText = detectMentions(text);
-
-      // @all → expand to all non-system agent names
-      if (mentionsFromText.includes('all')) {
-        mentionsFromText = [...this.app.agents.entries()]
-          .filter(([, e]) => !e.config.system)
-          .map(([name]) => name);
-      }
-
-      // Also trigger agents listed in `to` (e.g. auto-added via reply-to)
-      const mentionsFromTo = (envelope.to ?? [])
-        .map(addr => addr.startsWith('@') ? addr.slice(1) : addr);
-
-      allMentions = [...new Set([...mentionsFromText, ...mentionsFromTo])];
+    // @all → expand to all non-system agent names
+    if (mentionsFromText.includes('all')) {
+      mentionsFromText = [...this.app.agents.entries()]
+        .filter(([, e]) => !e.config.system)
+        .map(([name]) => name);
     }
 
-    // Never spawn the sender's own protocol (prevents self-mention loops)
+    const mentionsFromTo = (envelope.to ?? [])
+      .map(addr => addr.startsWith('@') ? addr.slice(1) : addr);
+
+    const allMentions = [...new Set([...mentionsFromText, ...mentionsFromTo])];
+
+    // Never spawn the sender's own protocol (prevents self-mention loops).
+    // Applied after @all-expansion so that @all from a non-sender still
+    // excludes the sender from the spawn set.
     const senderName = envelope.from.startsWith('@') ? envelope.from.slice(1) : envelope.from;
     const mentions = allMentions.filter(name => name !== senderName);
 
@@ -245,7 +239,7 @@ export class Sandbox {
         rootChannel,
         onPromptUser: this.promptUser ?? undefined,
         onAgentMessage: nextDepth < Sandbox.MAX_CHAIN_DEPTH
-          ? (env, rpId, rCh, astTo) => this.spawnMentionedProtocols(env, rpId, rCh, nextDepth, astTo)
+          ? (env, rpId, rCh) => this.spawnMentionedProtocols(env, rpId, rCh, nextDepth)
           : undefined,
       };
 
